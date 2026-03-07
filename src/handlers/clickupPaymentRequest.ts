@@ -1,5 +1,5 @@
 import { getTask, getDropdownValue } from "../services/clickup";
-import { sendMessage, sendMessageWithFile } from "../services/linte";
+import { sendMessage } from "../services/linte";
 
 interface ClickUpCommentPayload {
   task_id: string;
@@ -33,24 +33,18 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   const tipoPrestador = tipoPrestadorField ? getDropdownValue(tipoPrestadorField) : null;
   console.log(`[clickup] tipoPrestador resolvido:`, tipoPrestador);
 
-  const messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
+  let messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
 
   if (tipoPrestador?.toUpperCase() === "PJ") {
     const attachments = task.attachments ?? [];
     const lastAttachment = attachments[attachments.length - 1];
-    if (!lastAttachment) {
-      console.error(`[clickup] Tarefa PJ ${task.id} sem anexo para enviar com o pedido`);
-      return;
+    if (lastAttachment) {
+      messageText += `\nNF: ${lastAttachment.url}`;
+    } else {
+      console.error(`[clickup] Tarefa PJ ${task.id} sem anexo — enviando mensagem sem URL`);
     }
-    await sendMessageWithFile({
-      requisitionId: linteCode,
-      messageText,
-      fileUrl: lastAttachment.url,
-      fileName: lastAttachment.title,
-    });
-    console.log(`[clickup] Mensagem com anexo enviada para demanda Linte ${linteCode}`);
-  } else {
-    await sendMessage(linteCode, messageText);
-    console.log(`[clickup] Mensagem enviada para demanda Linte ${linteCode}`);
   }
+
+  await sendMessage(linteCode, messageText);
+  console.log(`[clickup] Mensagem enviada para demanda Linte ${linteCode}`);
 }
