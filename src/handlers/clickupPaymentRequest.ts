@@ -3,16 +3,18 @@ import { sendMessage, sendMessageWithFile } from "../services/linte";
 
 interface ClickUpCommentPayload {
   task_id: string;
-  comment?: {
-    comment_text: string;
-  };
+  history_items?: {
+    comment?: {
+      text_content: string;
+    };
+  }[];
 }
 
 const TRIGGER_TEXT = "pedido de pagamento enviado";
 
 export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload): Promise<void> {
-  const commentText = payload.comment?.comment_text ?? "";
-  if (commentText.trim().toLowerCase() !== TRIGGER_TEXT) return;
+  const commentText = payload.history_items?.[0]?.comment?.text_content?.trim() ?? "";
+  if (commentText.toLowerCase() !== TRIGGER_TEXT) return;
 
   const task = await getTask(payload.task_id);
   if (!task) {
