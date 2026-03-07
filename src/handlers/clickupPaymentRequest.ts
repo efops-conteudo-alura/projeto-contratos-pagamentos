@@ -30,6 +30,8 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   }
 
   const tipoPrestadorField = task.custom_fields.find((f) => f.name === "Tipo de prestador");
+  console.log(`[clickup] custom_fields:`, JSON.stringify(task.custom_fields));
+  console.log(`[clickup] tipoPrestador field:`, JSON.stringify(tipoPrestadorField));
   const tipoPrestador =
     typeof tipoPrestadorField?.value === "object" && tipoPrestadorField.value !== null
       ? (tipoPrestadorField.value as { label: string }).label
@@ -37,7 +39,7 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
       ? tipoPrestadorField.value
       : null;
 
-  const messageText = "Pedido de pagamento enviado pelo ClickUp.";
+  const messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
 
   if (tipoPrestador?.toUpperCase() === "PJ") {
     const attachments = await getTaskAttachments(task.id);
