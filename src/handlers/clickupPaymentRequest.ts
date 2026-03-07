@@ -1,4 +1,4 @@
-import { getTask, getTaskAttachments } from "../services/clickup";
+import { getTask, getDropdownValue } from "../services/clickup";
 import { sendMessage, sendMessageWithFile } from "../services/linte";
 
 interface ClickUpCommentPayload {
@@ -30,19 +30,13 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   }
 
   const tipoPrestadorField = task.custom_fields.find((f) => f.name === "Tipo de prestador");
-  console.log(`[clickup] custom_fields:`, JSON.stringify(task.custom_fields));
-  console.log(`[clickup] tipoPrestador field:`, JSON.stringify(tipoPrestadorField));
-  const tipoPrestador =
-    typeof tipoPrestadorField?.value === "object" && tipoPrestadorField.value !== null
-      ? (tipoPrestadorField.value as { label: string }).label
-      : typeof tipoPrestadorField?.value === "string"
-      ? tipoPrestadorField.value
-      : null;
+  const tipoPrestador = tipoPrestadorField ? getDropdownValue(tipoPrestadorField) : null;
+  console.log(`[clickup] tipoPrestador resolvido:`, tipoPrestador);
 
   const messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
 
   if (tipoPrestador?.toUpperCase() === "PJ") {
-    const attachments = await getTaskAttachments(task.id);
+    const attachments = task.attachments ?? [];
     const lastAttachment = attachments[attachments.length - 1];
     if (!lastAttachment) {
       console.error(`[clickup] Tarefa PJ ${task.id} sem anexo para enviar com o pedido`);

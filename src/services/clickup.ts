@@ -32,19 +32,30 @@ export async function updateTaskStatus(taskId: string, status: string): Promise<
   });
 }
 
-export async function getTask(taskId: string): Promise<{
-  id: string;
-  custom_fields: { name: string; value: string | { label: string } }[];
-  attachments?: { url: string; title: string }[];
-} | null> {
-  const res = await fetch(`${BASE}/task/${taskId}`, { headers });
-  if (!res.ok) return null;
-  return res.json() as Promise<{ id: string; custom_fields: { name: string; value: string | { label: string } }[]; attachments?: { url: string; title: string }[] }>;
+export interface ClickUpCustomField {
+  name: string;
+  type: string;
+  value: unknown;
+  type_config?: {
+    options?: { id: string; name: string; orderindex: number }[];
+  };
 }
 
-export async function getTaskAttachments(taskId: string): Promise<{ url: string; title: string }[]> {
-  const res = await fetch(`${BASE}/task/${taskId}/attachment`, { headers });
-  if (!res.ok) return [];
-  const data = await res.json() as { attachments: { url: string; title: string }[] };
-  return data.attachments ?? [];
+export interface ClickUpTask {
+  id: string;
+  custom_fields: ClickUpCustomField[];
+  attachments?: { url: string; title: string; id: string }[];
+}
+
+export async function getTask(taskId: string): Promise<ClickUpTask | null> {
+  const res = await fetch(`${BASE}/task/${taskId}?include_subtasks=false`, { headers });
+  if (!res.ok) return null;
+  return res.json() as Promise<ClickUpTask>;
+}
+
+export function getDropdownValue(field: ClickUpCustomField): string | null {
+  if (field.value === null || field.value === undefined) return null;
+  const orderindex = typeof field.value === "number" ? field.value : Number(field.value);
+  const option = field.type_config?.options?.find((o) => o.orderindex === orderindex);
+  return option?.name ?? null;
 }
