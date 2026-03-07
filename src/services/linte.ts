@@ -24,7 +24,9 @@ async function gql(query: string, variables: Record<string, unknown>): Promise<u
 export async function sendMessage(requisitionId: string, messageText: string): Promise<void> {
   await gql(
     `mutation SendMessage($requisitionId: ID!, $messageText: String!) {
-      sendRequisitionMessage(requisitionId: $requisitionId, messageText: $messageText)
+      sendRequisitionMessage(requisitionId: $requisitionId, messageText: $messageText) {
+        id
+      }
     }`,
     { requisitionId, messageText }
   );
@@ -39,7 +41,9 @@ export async function sendMessageWithFile(input: {
   // sendRequisitionMessageWithFiles espera um input — ajustar campos conforme schema real
   await gql(
     `mutation SendMessageWithFiles($input: SendRequisitionMessageWithFilesInput!) {
-      sendRequisitionMessageWithFiles(input: $input)
+      sendRequisitionMessageWithFiles(input: $input) {
+        id
+      }
     }`,
     { input }
   );
