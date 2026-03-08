@@ -39,7 +39,7 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     const attachments = task.attachments ?? [];
     const lastAttachment = attachments[attachments.length - 1];
     if (lastAttachment) {
-      messageText += `\n[${lastAttachment.title}](${lastAttachment.url})`;
+      messageText += `\nNF: ${lastAttachment.url}`;
     } else {
       console.error(`[clickup] Tarefa PJ ${task.id} sem anexo — enviando mensagem sem URL`);
     }
