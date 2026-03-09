@@ -17,19 +17,34 @@ export async function findTaskByLinteCode(linteCode: string): Promise<{ id: stri
 }
 
 export async function searchTasksByCustomField(fieldName: string, value: string): Promise<{ id: string; custom_fields: { name: string; value: string }[] }[]> {
-  const res = await fetch(`${BASE}/list/${LIST_ID}/task?include_closed=false`, { headers });
-  const data = await res.json() as { tasks: { id: string; custom_fields: { name: string; value: string }[] }[] };
-  return (data.tasks ?? []).filter((t) =>
+  const allTasks: { id: string; custom_fields: { name: string; value: string }[] }[] = [];
+  let page = 0;
+
+  while (true) {
+    const res = await fetch(`${BASE}/list/${LIST_ID}/task?include_closed=false&page=${page}`, { headers });
+    const data = await res.json() as { tasks: { id: string; custom_fields: { name: string; value: string }[] }[] };
+    const tasks = data.tasks ?? [];
+    allTasks.push(...tasks);
+    if (tasks.length < 100) break;
+    page++;
+  }
+
+  return allTasks.filter((t) =>
     t.custom_fields?.some((f) => f.name === fieldName && f.value === value)
   );
 }
 
 export async function updateTaskStatus(taskId: string, status: string): Promise<void> {
-  await fetch(`${BASE}/task/${taskId}`, {
+  const res = await fetch(`${BASE}/task/${taskId}`, {
     method: "PUT",
     headers,
     body: JSON.stringify({ status }),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`ClickUp updateTaskStatus falhou (${res.status}): ${body}`);
+  }
+  console.log(`[clickup] Status da tarefa ${taskId} atualizado para "${status}"`);
 }
 
 export interface ClickUpCustomField {
