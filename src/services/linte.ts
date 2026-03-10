@@ -31,20 +31,3 @@ export async function sendMessage(requisitionId: string, messageText: string): P
     { requisitionId, messageText }
   );
 }
-
-export async function sendMessageWithFile(input: {
-  requisitionId: string;
-  messageText: string;
-  fileUrl: string;
-  fileName: string;
-}): Promise<void> {
-  // sendRequisitionMessageWithFiles espera um input — ajustar campos conforme schema real
-  await gql(
-    `mutation SendMessageWithFiles($input: SendRequisitionMessageWithFilesInput!) {
-      sendRequisitionMessageWithFiles(input: $input) {
-        id
-      }
-    }`,
-    { input }
-  );
-}
