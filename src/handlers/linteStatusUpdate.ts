@@ -1,5 +1,5 @@
 import { LINTE_TO_CLICKUP } from "../config/statusMapping";
-import { searchTasksByCustomField, updateTaskStatus } from "../services/clickup";
+import { findTaskByLinteCode, updateTaskStatus } from "../services/clickup";
 
 interface LinteWebhookPayload {
   eventType: string;
@@ -24,13 +24,12 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
     return;
   }
 
-  const tasks = await searchTasksByCustomField("Código Linte", linteCode);
-  if (!tasks.length) {
+  const task = await findTaskByLinteCode(linteCode);
+  if (!task) {
     console.error(`[linte] Nenhuma tarefa encontrada no ClickUp com Código Linte = "${linteCode}"`);
     return;
   }
 
-  const task = tasks[0];
   await updateTaskStatus(task.id, clickupStatus);
   console.log(`[linte] Tarefa ${task.id} atualizada para "${clickupStatus}"`);
 }

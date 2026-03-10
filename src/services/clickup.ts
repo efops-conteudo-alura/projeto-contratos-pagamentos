@@ -9,9 +9,29 @@ const headers = {
   "Content-Type": "application/json",
 };
 
+const customFieldIdCache = new Map<string, string>();
+
+async function getListCustomFieldId(fieldName: string): Promise<string | null> {
+  if (customFieldIdCache.has(fieldName)) return customFieldIdCache.get(fieldName)!;
+  const res = await fetch(`${BASE}/list/${LIST_ID}/field`, { headers });
+  if (!res.ok) {
+    console.error(`[clickup] Falha ao buscar campos da lista (${res.status})`);
+    return null;
+  }
+  const data = await res.json() as { fields: { id: string; name: string }[] };
+  const id = data.fields?.find((f) => f.name === fieldName)?.id ?? null;
+  if (id) customFieldIdCache.set(fieldName, id);
+  return id;
+}
+
 export async function findTaskByLinteCode(linteCode: string): Promise<{ id: string } | null> {
-  const url = `${BASE}/list/${LIST_ID}/task?custom_fields=[{"field_id":"CODIGO_LINTE","operator":"=","value":"${encodeURIComponent(linteCode)}"}]`;
-  const res = await fetch(url, { headers });
+  const fieldId = await getListCustomFieldId("Código Linte");
+  if (!fieldId) {
+    console.error(`[clickup] Campo "Código Linte" não encontrado na lista`);
+    return null;
+  }
+  const filter = encodeURIComponent(JSON.stringify([{ field_id: fieldId, operator: "=", value: linteCode }]));
+  const res = await fetch(`${BASE}/list/${LIST_ID}/task?custom_fields=${filter}`, { headers });
   const data = await res.json() as { tasks: { id: string }[] };
   return data.tasks?.[0] ?? null;
 }
