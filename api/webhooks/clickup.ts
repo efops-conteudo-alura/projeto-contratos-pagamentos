@@ -5,7 +5,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
   const payload = req.body;
-  console.log("[clickup webhook]", JSON.stringify(payload));
+  console.log("[clickup webhook]", { event: payload?.event, task_id: payload?.task_id });
 
   if (payload?.event !== "taskCommentPosted") {
     return res.status(200).json({ ignored: true });

@@ -31,7 +31,11 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 
   const tipoPrestadorField = task.custom_fields.find((f) => f.name === "Tipo de prestador");
   const tipoPrestador = tipoPrestadorField ? getDropdownValue(tipoPrestadorField) : null;
-  console.log(`[clickup] tipoPrestador resolvido:`, tipoPrestador);
+  if (!tipoPrestador) {
+    console.error(`[clickup] Tarefa ${task.id} sem "Tipo de prestador" reconhecido — abortando`);
+    return;
+  }
+  console.log(`[clickup] tipoPrestador resolvido: ${tipoPrestador}`);
 
   let messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
 

@@ -14,6 +14,9 @@ async function gql(query: string, variables: Record<string, unknown>): Promise<u
     headers,
     body: JSON.stringify({ query, variables }),
   });
+  if (!res.ok) {
+    throw new Error(`Linte API HTTP ${res.status}`);
+  }
   const data = await res.json() as { data: unknown; errors?: { message: string }[] };
   if (data.errors?.length) {
     throw new Error(data.errors.map((e) => e.message).join(", "));

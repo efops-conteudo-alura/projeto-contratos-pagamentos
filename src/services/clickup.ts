@@ -32,6 +32,10 @@ export async function findTaskByLinteCode(linteCode: string): Promise<{ id: stri
   }
   const filter = encodeURIComponent(JSON.stringify([{ field_id: fieldId, operator: "=", value: linteCode }]));
   const res = await fetch(`${BASE}/list/${LIST_ID}/task?custom_fields=${filter}`, { headers });
+  if (!res.ok) {
+    console.error(`[clickup] Erro ao buscar tarefa por Código Linte (${res.status})`);
+    return null;
+  }
   const data = await res.json() as { tasks: { id: string }[] };
   return data.tasks?.[0] ?? null;
 }
@@ -84,7 +88,10 @@ export interface ClickUpTask {
 
 export async function getTask(taskId: string): Promise<ClickUpTask | null> {
   const res = await fetch(`${BASE}/task/${taskId}?include_subtasks=false`, { headers });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.error(`[clickup] Falha ao buscar tarefa ${taskId} (${res.status})`);
+    return null;
+  }
   return res.json() as Promise<ClickUpTask>;
 }
 

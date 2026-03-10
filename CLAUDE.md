@@ -54,7 +54,11 @@ src/
 **Edge cases:**
 - Status não mapeado → logar e ignorar (não retornar erro)
 - Tarefa não encontrada no ClickUp → logar erro, retornar 200 (não reprocessar)
-- Múltiplas tarefas com mesmo código → logar aviso, atualizar a primeira
+
+**Busca de tarefa por Código Linte:**
+Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query param na API do ClickUp (`custom_fields=[...]`). O UUID do campo "Código Linte" é resolvido dinamicamente via `GET /list/{LIST_ID}/field` (função privada `getListCustomFieldId`) e cacheado em memória por processo — evita uma chamada extra a cada webhook. Se a API falhar ou o campo não existir, o cache não é populado e a próxima chamada tenta novamente.
+
+> `searchTasksByCustomField` (busca paginada com filtro em memória) ainda existe no serviço mas não é usada pelo handler. Foi mantida para uso futuro caso seja necessário buscar por outros campos sem UUID conhecido.
 
 ---
 
@@ -118,10 +122,14 @@ Para **adicionar um novo mapeamento**, editar apenas `src/config/statusMapping.t
 
 ## Convenções
 
-- Todos os webhooks devem retornar **HTTP 200** mesmo em erros de negócio (evita reenvios desnecessários). Retornar 4xx/5xx apenas para erros de infraestrutura ou payload inválido.
+- Todos os webhooks retornam **HTTP 200** mesmo em erros inesperados (`{ ok: false, error: "..." }`). Retornar 500 acionaria a política de retry do ClickUp/Linte, causando reprocessamento duplicado (ex: comentário enviado duas vezes na Linte). 4xx/5xx apenas para falhas de infraestrutura fora do controle da função.
 - Logs devem incluir contexto: ID da tarefa, código Linte, status recebido.
 - Não lançar exceções não tratadas nos handlers — capturar e logar.
 - TypeScript strict mode ativo; evitar `any`.
+
+### Código removido intencionalmente
+
+- **`sendMessageWithFile` (`src/services/linte.ts`)** — removida por ser código morto. O schema da mutation `sendRequisitionMessageWithFiles` nunca foi confirmado e a função nunca foi chamada. O fluxo PJ envia a URL da NF colada no texto via `sendMessage`, o que é suficiente. Se futuramente for necessário enviar arquivo como anexo dentro da Linte, implementar do zero com o schema confirmado.
 
 ---
 
