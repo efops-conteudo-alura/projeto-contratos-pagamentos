@@ -37,9 +37,15 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   }
   console.log(`[clickup] tipoPrestador resolvido: ${tipoPrestador}`);
 
-  let messageText = "Olá! Segue nf. Podem liberar o pagamento. Obrigada!";
+  const tipo = tipoPrestador.toUpperCase();
+  let messageText: string;
 
-  if (tipoPrestador?.toUpperCase() === "PJ") {
+  if (tipo === "RPA") {
+    messageText = "Olá! Podem liberar o pagamento. Obrigado!";
+  } else if (tipo === "INVOICE") {
+    messageText = "Olá! Podem gerar o INVOICE. Obrigado!";
+  } else if (tipo === "PJ") {
+    messageText = "Olá! Segue NF. Podem liberar o pagamento. Obrigado!";
     const attachments = task.attachments ?? [];
     const lastAttachment = attachments[attachments.length - 1];
     if (lastAttachment) {
@@ -47,6 +53,9 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     } else {
       console.error(`[clickup] Tarefa PJ ${task.id} sem anexo — enviando mensagem sem URL`);
     }
+  } else {
+    console.error(`[clickup] Tarefa ${task.id} com tipo de prestador não mapeado: "${tipoPrestador}" — abortando`);
+    return;
   }
 
   await sendMessage(linteCode, messageText);
