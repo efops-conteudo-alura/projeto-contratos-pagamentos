@@ -1,5 +1,6 @@
 import { getTask, getDropdownValue } from "../services/clickup";
 import { sendMessage } from "../services/linte";
+import { logInfo, logError } from "../services/logger";
 
 interface ClickUpCommentPayload {
   task_id: string;
@@ -18,24 +19,24 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 
   const task = await getTask(payload.task_id);
   if (!task) {
-    console.error(`[clickup] Tarefa ${payload.task_id} não encontrada`);
+    await logError("clickup→linte", `Tarefa ${payload.task_id} não encontrada`, { taskId: payload.task_id });
     return;
   }
 
   const linteCodeField = task.custom_fields.find((f) => f.name === "Código Linte");
   const linteCode = typeof linteCodeField?.value === "string" ? linteCodeField.value : null;
   if (!linteCode) {
-    console.error(`[clickup] Tarefa ${task.id} sem campo "Código Linte"`);
+    await logError("clickup→linte", `Tarefa ${task.id} sem campo "Código Linte"`, { taskId: task.id });
     return;
   }
 
   const tipoPrestadorField = task.custom_fields.find((f) => f.name === "Tipo de prestador");
   const tipoPrestador = tipoPrestadorField ? getDropdownValue(tipoPrestadorField) : null;
   if (!tipoPrestador) {
-    console.error(`[clickup] Tarefa ${task.id} sem "Tipo de prestador" reconhecido — abortando`);
+    await logError("clickup→linte", `Tarefa ${task.id} sem "Tipo de prestador" reconhecido — abortando`, { linteCode, taskId: task.id });
     return;
   }
-  console.log(`[clickup] tipoPrestador resolvido: ${tipoPrestador}`);
+  await logInfo("clickup→linte", `tipoPrestador resolvido: ${tipoPrestador}`, { linteCode, taskId: task.id });
 
   const tipo = tipoPrestador.toUpperCase();
   let messageText: string;
@@ -51,13 +52,13 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     if (lastAttachment) {
       messageText += `\nNF: ${lastAttachment.url}`;
     } else {
-      console.error(`[clickup] Tarefa PJ ${task.id} sem anexo — enviando mensagem sem URL`);
+      await logError("clickup→linte", `Tarefa PJ ${task.id} sem anexo — enviando mensagem sem URL`, { linteCode, taskId: task.id });
     }
   } else {
-    console.error(`[clickup] Tarefa ${task.id} com tipo de prestador não mapeado: "${tipoPrestador}" — abortando`);
+    await logError("clickup→linte", `Tarefa ${task.id} com tipo de prestador não mapeado: "${tipoPrestador}" — abortando`, { linteCode, taskId: task.id });
     return;
   }
 
   await sendMessage(linteCode, messageText);
-  console.log(`[clickup] Mensagem enviada para demanda Linte ${linteCode}`);
+  await logInfo("clickup→linte", `Mensagem enviada para demanda Linte ${linteCode}`, { linteCode, taskId: task.id });
 }
