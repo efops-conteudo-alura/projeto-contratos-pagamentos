@@ -100,9 +100,12 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 LINTE_API_KEY=          # Chave de autenticação da API da Linte
 CLICKUP_API_TOKEN=      # Token pessoal ou OAuth do ClickUp
 CLICKUP_LIST_ID=        # ID da lista onde as tarefas estão
+POSTGRES_URL=           # Connection string do Vercel Postgres (ex: postgres://user:pass@host/db)
 ```
 
 > Em desenvolvimento local, criar `.env.local` na raiz. Nunca commitar esse arquivo.
+
+> **Schema do banco:** após configurar `POSTGRES_URL`, criar a tabela uma vez chamando `ensureSchema()` de `src/lib/db.ts`. O logger (`src/services/logger.ts`) não cria a tabela automaticamente — ela precisa existir antes.
 
 ---
 
