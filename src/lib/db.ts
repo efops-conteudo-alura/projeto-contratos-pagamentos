@@ -1,6 +1,6 @@
-import { sql } from "@vercel/postgres";
+import { neon } from "@neondatabase/serverless";
 
-export { sql };
+export const sql = neon(process.env.POSTGRES_URL!);
 
 export async function ensureSchema(): Promise<void> {
   await sql`
