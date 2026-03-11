@@ -100,7 +100,9 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 LINTE_API_KEY=          # Chave de autenticação da API da Linte
 CLICKUP_API_TOKEN=      # Token pessoal ou OAuth do ClickUp
 CLICKUP_LIST_ID=        # ID da lista onde as tarefas estão
-POSTGRES_URL=           # Connection string do Vercel Postgres (ex: postgres://user:pass@host/db)
+POSTGRES_URL=           # Connection string do Neon Postgres (ex: postgres://user:pass@host/db)
+TEAMS_WEBHOOK_URL=      # URL do webhook do canal do Teams para o relatório diário
+CRON_SECRET=            # Segredo injetado pela Vercel nos cron jobs (gerado automaticamente)
 ```
 
 > Em desenvolvimento local, criar `.env.local` na raiz. Nunca commitar esse arquivo.
