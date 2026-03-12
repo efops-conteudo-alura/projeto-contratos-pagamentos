@@ -24,7 +24,7 @@ async function getListCustomFieldId(fieldName: string): Promise<string | null> {
   return id;
 }
 
-export async function findTaskByLinteCode(linteCode: string): Promise<{ id: string } | null> {
+export async function findTaskByLinteCode(linteCode: string): Promise<{ id: string; currentStatus: string } | null> {
   const fieldId = await getListCustomFieldId("Código Linte");
   if (!fieldId) {
     console.error(`[clickup] Campo "Código Linte" não encontrado na lista`);
@@ -36,8 +36,10 @@ export async function findTaskByLinteCode(linteCode: string): Promise<{ id: stri
     console.error(`[clickup] Erro ao buscar tarefa por Código Linte (${res.status})`);
     return null;
   }
-  const data = await res.json() as { tasks: { id: string }[] };
-  return data.tasks?.[0] ?? null;
+  const data = await res.json() as { tasks: { id: string; status: { status: string } }[] };
+  const task = data.tasks?.[0];
+  if (!task) return null;
+  return { id: task.id, currentStatus: task.status?.status ?? "" };
 }
 
 export async function searchTasksByCustomField(fieldName: string, value: string): Promise<{ id: string; custom_fields: { name: string; value: string }[] }[]> {

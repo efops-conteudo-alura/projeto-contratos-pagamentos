@@ -19,8 +19,8 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
   const linteCode = requisition.id;
   const linteStatusLabel = requisition.status.label;
 
-  const clickupStatus = LINTE_TO_CLICKUP[linteStatusLabel];
-  if (!clickupStatus) {
+  const mapping = LINTE_TO_CLICKUP[linteStatusLabel];
+  if (!mapping) {
     await logInfo("linte→clickup", `Status "${linteStatusLabel}" sem mapeamento — ignorando`, { linteCode });
     return;
   }
@@ -30,6 +30,19 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
     return;
   }
 
-  await updateTaskStatus(task.id, clickupStatus);
-  await logInfo("linte→clickup", `Tarefa ${task.id} atualizada para "${clickupStatus}"`, { linteCode, taskId: task.id });
+  if (mapping.requiredCurrentStatus) {
+    const currentNormalized = task.currentStatus.toUpperCase();
+    const requiredNormalized = mapping.requiredCurrentStatus.toUpperCase();
+    if (currentNormalized !== requiredNormalized) {
+      await logInfo(
+        "linte→clickup",
+        `Transição ignorada: tarefa ${task.id} está em "${task.currentStatus}", esperado "${mapping.requiredCurrentStatus}"`,
+        { linteCode, taskId: task.id }
+      );
+      return;
+    }
+  }
+
+  await updateTaskStatus(task.id, mapping.targetStatus);
+  await logInfo("linte→clickup", `Tarefa ${task.id} atualizada para "${mapping.targetStatus}"`, { linteCode, taskId: task.id });
 }
