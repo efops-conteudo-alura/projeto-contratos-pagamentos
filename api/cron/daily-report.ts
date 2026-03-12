@@ -156,8 +156,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const endUtc = new Date(Date.UTC(
     yesterday.getFullYear(),
     yesterday.getMonth(),
-    yesterday.getDate(),
-    27, 0, 0 // 00:00 BRT do dia seguinte = 03:00 UTC do dia seguinte
+    yesterday.getDate() + 1, // dia seguinte
+    3, 0, 0 // 00:00 BRT = 03:00 UTC
   ));
 
   let rows: LogRow[];
