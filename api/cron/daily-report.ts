@@ -123,6 +123,18 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
   };
 }
 
+async function sendTeamsAlert(url: string, message: string): Promise<void> {
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: `⚠️ Relatório diário falhou: ${message}` }),
+    });
+  } catch {
+    console.error("[daily-report] Falha ao enviar alerta de erro para o Teams");
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expectedToken = process.env.CRON_SECRET;
   const authHeader = req.headers["authorization"];
@@ -172,6 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     rows = result as LogRow[];
   } catch (err) {
     console.error("[daily-report] Erro ao consultar banco:", err);
+    await sendTeamsAlert(teamsWebhookUrl, "Erro ao consultar banco");
     return res.status(200).json({ ok: false, error: "Erro ao consultar banco" });
   }
 
@@ -190,10 +203,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!teamsRes.ok) {
       const body = await teamsRes.text();
       console.error(`[daily-report] Teams retornou ${teamsRes.status}: ${body}`);
+      await sendTeamsAlert(teamsWebhookUrl, `Teams retornou HTTP ${teamsRes.status}`);
       return res.status(200).json({ ok: false, error: `Teams HTTP ${teamsRes.status}` });
     }
   } catch (err) {
     console.error("[daily-report] Erro ao enviar para o Teams:", err);
+    await sendTeamsAlert(teamsWebhookUrl, "Erro de conexão ao enviar o relatório");
     return res.status(200).json({ ok: false, error: "Erro ao enviar para o Teams" });
   }
 
