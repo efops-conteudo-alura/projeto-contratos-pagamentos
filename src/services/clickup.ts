@@ -97,6 +97,34 @@ export async function getTask(taskId: string): Promise<ClickUpTask | null> {
   return res.json() as Promise<ClickUpTask>;
 }
 
+export async function setTaskDateField(taskId: string, fieldName: string, timestampMs: number): Promise<void> {
+  const fieldId = await getListCustomFieldId(fieldName);
+  if (!fieldId) {
+    throw new Error(`Campo "${fieldName}" não encontrado na lista`);
+  }
+  const res = await fetch(`${BASE}/task/${taskId}/field/${fieldId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ value: timestampMs }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`ClickUp setTaskDateField falhou (${res.status}): ${body}`);
+  }
+}
+
+export async function addTaskComment(taskId: string, text: string): Promise<void> {
+  const res = await fetch(`${BASE}/task/${taskId}/comment`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ comment_text: text }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`ClickUp addTaskComment falhou (${res.status}): ${body}`);
+  }
+}
+
 export function getDropdownValue(field: ClickUpCustomField): string | null {
   if (field.value === null || field.value === undefined) return null;
   const orderindex = typeof field.value === "number" ? field.value : Number(field.value);

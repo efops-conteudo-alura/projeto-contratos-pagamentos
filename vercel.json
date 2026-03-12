@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/webhooks/linte.ts": { "maxDuration": 60 }
+  },
   "crons": [
     {
       "path": "/api/cron/daily-report",

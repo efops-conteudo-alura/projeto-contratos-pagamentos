@@ -24,6 +24,25 @@ async function gql(query: string, variables: Record<string, unknown>): Promise<u
   return data.data;
 }
 
+export async function getRequisitionMessages(requisitionId: string): Promise<{ text: string }[]> {
+  const data = await gql(
+    `query GetMessages($requisitionId: ID!) {
+      requisition(id: $requisitionId) {
+        messages {
+          text
+          createdAt
+        }
+      }
+    }`,
+    { requisitionId }
+  ) as { requisition: { messages: { text: string; createdAt: string }[] } };
+
+  const messages = data?.requisition?.messages ?? [];
+  return [...messages].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
 export async function sendMessage(requisitionId: string, messageText: string): Promise<void> {
   await gql(
     `mutation SendMessage($requisitionId: ID!, $messageText: String!) {
