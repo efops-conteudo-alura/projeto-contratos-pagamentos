@@ -1,6 +1,6 @@
 import { LINTE_TO_CLICKUP } from "../config/statusMapping";
 import { findTaskByLinteCode, updateTaskStatus } from "../services/clickup";
-import { logInfo, logError } from "../services/logger";
+import { logInfo } from "../services/logger";
 
 interface LinteWebhookPayload {
   eventType: string;
@@ -27,7 +27,6 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
 
   const task = await findTaskByLinteCode(linteCode);
   if (!task) {
-    await logError("linte→clickup", `Nenhuma tarefa encontrada no ClickUp com Código Linte = "${linteCode}"`, { linteCode });
     return;
   }
 

@@ -24,17 +24,22 @@ Automação entre **Linte** (sistema de gestão de contratos) e **ClickUp** (ger
 ```
 api/
   webhooks/
-    linte.ts       # Entrada: webhooks da Linte
-    clickup.ts     # Entrada: webhooks do ClickUp
+    linte.ts            # Entrada: webhooks da Linte
+    clickup.ts          # Entrada: webhooks do ClickUp
+  cron/
+    daily-report.ts     # Cron job: relatório diário para o Teams
 src/
   config/
-    statusMapping.ts   # Mapeamento de status Linte → ClickUp
+    statusMapping.ts    # Mapeamento de status Linte → ClickUp
   handlers/
     linteStatusUpdate.ts      # Fluxo 1: atualiza tarefa no ClickUp
     clickupPaymentRequest.ts  # Fluxo 2: envia comentário na Linte
   services/
     linte.ts     # Cliente GraphQL da Linte
     clickup.ts   # Cliente REST do ClickUp
+    logger.ts    # Logger: grava eventos no Postgres e no console
+  lib/
+    db.ts        # Cliente Neon Postgres + função ensureSchema()
 ```
 
 ---
@@ -80,6 +85,23 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 
 ---
 
+### Fluxo 3 — Cron job: relatório diário para o Teams
+
+**Trigger:** Cron job da Vercel, todo dia às 08:00 BRT (configurado como `0 11 * * *` UTC em `vercel.json`)
+
+**Endpoint:** `api/cron/daily-report.ts` — autenticado via header `Authorization: Bearer <CRON_SECRET>`
+
+**Lógica:**
+1. Consulta a tabela `automation_log` no Postgres buscando todos os registros do dia anterior (fuso horário de Brasília)
+2. Monta um Adaptive Card com resumo de eventos `info` e `error`
+3. Envia o card para o canal do Teams via `TEAMS_WEBHOOK_URL`
+
+**Comportamentos:**
+- Nenhum evento ontem → envia card com mensagem "Nenhuma movimentação ontem"
+- `TEAMS_WEBHOOK_URL` não configurada → retorna 200 com erro (não lança exceção)
+
+---
+
 ## Serviços
 
 ### `src/services/linte.ts`
@@ -91,6 +113,15 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 - Protocolo: **REST**
 - Base URL: `https://api.clickup.com/api/v2`
 - Auth: header `Authorization: <CLICKUP_API_TOKEN>`
+
+### `src/services/logger.ts`
+- Exporta `logInfo` e `logError`
+- Cada chamada grava no console **e** insere uma linha na tabela `automation_log` do Postgres
+- Silencia erros de banco (não propaga exceção se o INSERT falhar)
+
+### `src/lib/db.ts`
+- Exporta `sql` (cliente Neon via `@neondatabase/serverless`) e `ensureSchema()`
+- `ensureSchema()` cria a tabela `automation_log` se não existir — deve ser chamada uma vez manualmente antes de usar o logger em produção
 
 ---
 
