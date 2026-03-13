@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  if (payload?.event === "taskStatusUpdated") {
+  if (payload?.event === "taskStatusUpdated" || payload?.event === "taskUpdated") {
     const newStatus: string = payload?.history_items?.[0]?.after?.status ?? "";
     if (newStatus.toUpperCase() === "FINALIZADO") {
       try {
