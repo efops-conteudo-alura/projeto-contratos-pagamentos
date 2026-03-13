@@ -15,3 +15,16 @@ export async function ensureSchema(): Promise<void> {
     )
   `;
 }
+
+export async function ensurePaymentQueueSchema(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS payment_queue (
+      id SERIAL PRIMARY KEY,
+      task_id TEXT NOT NULL UNIQUE,
+      linte_code TEXT,
+      instructor_name TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      sent BOOLEAN DEFAULT FALSE
+    )
+  `;
+}

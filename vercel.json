@@ -6,6 +6,10 @@
     {
       "path": "/api/cron/daily-report",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/payment-report",
+      "schedule": "0 15 * * *"
     }
   ]
 }
