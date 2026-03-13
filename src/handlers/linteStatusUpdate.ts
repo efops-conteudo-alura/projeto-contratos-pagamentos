@@ -37,7 +37,7 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
     if (currentNormalized !== requiredNormalized) {
       await logInfo(
         "linte→clickup",
-        `Transição ignorada: tarefa ${task.id} está em "${task.currentStatus}", esperado "${mapping.requiredCurrentStatus}"`,
+        `Transição ignorada: ${task.name} | ${linteCode} está em "${task.currentStatus}", esperado "${mapping.requiredCurrentStatus}"`,
         { linteCode, taskId: task.id }
       );
       return;
@@ -45,7 +45,7 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
   }
 
   await updateTaskStatus(task.id, mapping.targetStatus);
-  await logInfo("linte→clickup", `Tarefa ${task.id} atualizada para "${mapping.targetStatus}"`, { linteCode, taskId: task.id });
+  await logInfo("linte→clickup", `${task.name} | ${linteCode} atualizada para "${mapping.targetStatus}"`, { linteCode, taskId: task.id });
 
   if (linteStatusLabel === "Sob Análise do Jurídico") {
     await extractPaymentInfo(linteCode, task.id);

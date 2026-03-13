@@ -188,7 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: false, error: "Erro ao consultar banco" });
   }
 
-  const infoRows = rows.filter((r) => r.level === "info");
+  const infoRows = rows.filter((r) => r.level === "info" && !r.message.toLowerCase().includes("ignorando"));
   const errorRows = rows.filter((r) => r.level === "error");
 
   const card = buildAdaptiveCard(infoRows, errorRows, dateLabel);
