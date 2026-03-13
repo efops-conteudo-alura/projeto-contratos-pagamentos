@@ -28,10 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
-  const teamsWebhookUrl = process.env.TEAMS_WEBHOOK_URL;
+  const teamsWebhookUrl = process.env.TEAMS_PAYMENT_WEBHOOK_URL;
   if (!teamsWebhookUrl) {
-    console.error("[payment-report] TEAMS_WEBHOOK_URL não configurada");
-    return res.status(200).json({ ok: false, error: "TEAMS_WEBHOOK_URL não configurada" });
+    console.error("[payment-report] TEAMS_PAYMENT_WEBHOOK_URL não configurada");
+    return res.status(200).json({ ok: false, error: "TEAMS_PAYMENT_WEBHOOK_URL não configurada" });
   }
 
   let rows: PaymentRow[];
