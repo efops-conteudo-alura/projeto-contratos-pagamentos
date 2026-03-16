@@ -19,6 +19,18 @@ function formatTime(isoString: string): string {
   });
 }
 
+function flowColor(flow: string): string {
+  if (flow === "linte→clickup") return "Accent";   // azul
+  if (flow === "clickup→linte") return "Good";     // verde
+  return "Default";
+}
+
+function flowLabel(flow: string): string {
+  if (flow === "linte→clickup") return "Linte → ClickUp";
+  if (flow === "clickup→linte") return "ClickUp → Linte";
+  return flow;
+}
+
 function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: string): object {
   const totalInfo = infoRows.length;
   const totalError = errorRows.length;
@@ -80,9 +92,10 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     for (const row of infoRows) {
       body.push({
         type: "TextBlock",
-        text: `${formatTime(row.created_at)} — ${row.message}`,
+        text: `${formatTime(row.created_at)} **[${flowLabel(row.flow)}]** ${row.message}`,
         wrap: true,
         size: "Small",
+        color: flowColor(row.flow),
       });
     }
   }
@@ -99,7 +112,7 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     for (const row of errorRows) {
       body.push({
         type: "TextBlock",
-        text: `${formatTime(row.created_at)} — ${row.message}`,
+        text: `${formatTime(row.created_at)} **[${flowLabel(row.flow)}]** ${row.message}`,
         wrap: true,
         size: "Small",
         color: "Attention",

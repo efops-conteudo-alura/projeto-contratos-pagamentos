@@ -33,11 +33,16 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
 
   if (mapping.requiredCurrentStatus) {
     const currentNormalized = task.currentStatus.toUpperCase();
-    const requiredNormalized = mapping.requiredCurrentStatus.toUpperCase();
-    if (currentNormalized !== requiredNormalized) {
+    const allowed = Array.isArray(mapping.requiredCurrentStatus)
+      ? mapping.requiredCurrentStatus.map((s) => s.toUpperCase())
+      : [mapping.requiredCurrentStatus.toUpperCase()];
+    if (!allowed.includes(currentNormalized)) {
+      const expectedLabel = Array.isArray(mapping.requiredCurrentStatus)
+        ? mapping.requiredCurrentStatus.join(" ou ")
+        : mapping.requiredCurrentStatus;
       await logInfo(
         "linte→clickup",
-        `Transição ignorada: ${task.name} | ${linteCode} está em "${task.currentStatus}", esperado "${mapping.requiredCurrentStatus}"`,
+        `Transição ignorada: ${task.name} | ${linteCode} está em "${task.currentStatus}", esperado "${expectedLabel}"`,
         { linteCode, taskId: task.id }
       );
       return;

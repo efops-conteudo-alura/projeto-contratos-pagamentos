@@ -1,12 +1,12 @@
 export interface StatusMappingEntry {
   targetStatus: string;
-  requiredCurrentStatus?: string;
+  requiredCurrentStatus?: string | string[];
 }
 
 export const LINTE_TO_CLICKUP: Record<string, StatusMappingEntry> = {
   "DP | Aguardando Assinatura": {
     targetStatus: "ENVIADO PARA ASSINATURA",
-    requiredCurrentStatus: "EM ANÁLISE",
+    requiredCurrentStatus: ["BACKLOG", "EM ANÁLISE"],
   },
   "DP | Ativo": {
     targetStatus: "CONTRATO ATIVO",
