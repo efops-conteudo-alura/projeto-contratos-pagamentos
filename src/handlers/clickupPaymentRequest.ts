@@ -36,8 +36,6 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     await logError("clickup→linte", `Tarefa ${task.id} sem "Tipo de prestador" reconhecido — abortando`, { linteCode, taskId: task.id });
     return;
   }
-  await logInfo("clickup→linte", `tipoPrestador resolvido: ${tipoPrestador}`, { linteCode, taskId: task.id });
-
   const tipo = tipoPrestador.toUpperCase();
   let messageText: string;
 
@@ -60,5 +58,5 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   }
 
   await sendMessage(linteCode, messageText);
-  await logInfo("clickup→linte", `Mensagem enviada para demanda Linte ${linteCode}`, { linteCode, taskId: task.id });
+  await logInfo("clickup→linte", `Pedido de pagamento enviado — ${task.name} | ${linteCode} (${tipoPrestador})`, { linteCode, taskId: task.id });
 }
