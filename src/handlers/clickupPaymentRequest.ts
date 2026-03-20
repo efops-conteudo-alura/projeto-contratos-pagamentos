@@ -33,7 +33,7 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   const tipoPrestadorField = task.custom_fields.find((f) => f.name === "Tipo de prestador");
   const tipoPrestador = tipoPrestadorField ? getDropdownValue(tipoPrestadorField) : null;
   if (!tipoPrestador) {
-    await logError("clickup→linte", `${linteCode} | sem "Tipo de prestador" reconhecido — abortando`, { linteCode, taskId: task.id });
+    await logError("clickup→linte", `Sem "Tipo de prestador" reconhecido — abortando`, { linteCode, taskId: task.id, taskName: task.name });
     return;
   }
   const tipo = tipoPrestador.toUpperCase();
@@ -50,13 +50,13 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     if (lastAttachment) {
       messageText += `\nNF: ${lastAttachment.url}`;
     } else {
-      await logError("clickup→linte", `${linteCode} | PJ sem anexo — enviando mensagem sem URL`, { linteCode, taskId: task.id });
+      await logError("clickup→linte", `PJ sem anexo — enviando mensagem sem URL`, { linteCode, taskId: task.id, taskName: task.name });
     }
   } else {
-    await logError("clickup→linte", `${linteCode} | tipo de prestador não mapeado: "${tipoPrestador}" — abortando`, { linteCode, taskId: task.id });
+    await logError("clickup→linte", `Tipo de prestador não mapeado: "${tipoPrestador}" — abortando`, { linteCode, taskId: task.id, taskName: task.name });
     return;
   }
 
   await sendMessage(linteCode, messageText);
-  await logInfo("clickup→linte", `Pedido de pagamento enviado — ${task.name} | ${linteCode} (${tipoPrestador})`, { linteCode, taskId: task.id });
+  await logInfo("clickup→linte", `Pedido de pagamento enviado (${tipoPrestador})`, { linteCode, taskId: task.id, taskName: task.name });
 }

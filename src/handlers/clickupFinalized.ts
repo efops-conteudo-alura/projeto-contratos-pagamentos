@@ -21,8 +21,8 @@ export async function handleClickUpFinalized(taskId: string): Promise<void> {
       VALUES (${taskId}, ${linteCode}, ${instructorName})
       ON CONFLICT (task_id) DO NOTHING
     `;
-    await logInfo("clickup→linte", `${instructorName ?? taskId} | ${linteCode ?? "sem código"} adicionado à fila de pagamento`, { taskId, linteCode: linteCode ?? undefined });
+    await logInfo("clickup→linte", "Adicionado à fila de pagamento", { taskId, linteCode: linteCode ?? undefined, taskName: task.name });
   } catch (err) {
-    await logError("clickup→linte", `Erro ao inserir na fila de pagamento: ${err}`, { taskId });
+    await logError("clickup→linte", `Erro ao inserir na fila de pagamento: ${err}`, { taskId, taskName: task.name });
   }
 }

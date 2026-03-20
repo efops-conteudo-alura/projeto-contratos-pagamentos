@@ -6,6 +6,7 @@ interface LogRow {
   flow: string;
   linte_code: string | null;
   task_id: string | null;
+  task_name: string | null;
   message: string;
   created_at: string;
 }
@@ -31,11 +32,49 @@ function flowLabel(flow: string): string {
   return flow;
 }
 
-function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: string): object {
-  const totalInfo = infoRows.length;
-  const totalError = errorRows.length;
+function buildLogBlocks(row: LogRow, color: string): object[] {
+  const linteUrl = row.linte_code ? `https://alura.linte.com/requests/${row.linte_code}` : null;
+  const clickupUrl = row.task_id ? `https://app.clickup.com/t/${row.task_id}` : null;
 
-  if (totalInfo === 0 && totalError === 0) {
+  const codePrefix = linteUrl
+    ? `[${row.linte_code}](${linteUrl})`
+    : row.linte_code ?? "";
+
+  const line1 = codePrefix
+    ? `${formatTime(row.created_at)} ${codePrefix} | ${row.message}`
+    : `${formatTime(row.created_at)} ${row.message}`;
+
+  const blocks: object[] = [
+    {
+      type: "TextBlock",
+      text: line1,
+      wrap: true,
+      size: "Small",
+      color,
+    },
+  ];
+
+  if (row.task_name) {
+    const taskText = clickupUrl ? `[${row.task_name}](${clickupUrl})` : row.task_name;
+    blocks.push({
+      type: "TextBlock",
+      text: taskText,
+      wrap: true,
+      size: "Small",
+      color,
+      spacing: "None",
+      isSubtle: true,
+    });
+  }
+
+  return blocks;
+}
+
+function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: string): object {
+  const linteRows = infoRows.filter((r) => r.flow === "linte→clickup");
+  const clickupRows = infoRows.filter((r) => r.flow === "clickup→linte");
+
+  if (linteRows.length === 0 && clickupRows.length === 0 && errorRows.length === 0) {
     return {
       type: "message",
       attachments: [
@@ -72,31 +111,33 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
       weight: "Bolder",
       size: "Medium",
     },
-    {
-      type: "FactSet",
-      facts: [
-        { title: "✅ Info", value: String(totalInfo) },
-        { title: "❌ Erros", value: String(totalError) },
-      ],
-    },
   ];
 
-  if (infoRows.length > 0) {
+  if (linteRows.length > 0) {
     body.push({
       type: "TextBlock",
-      text: "Eventos processados",
+      text: "Linte → ClickUp",
       weight: "Bolder",
+      color: "Accent",
       spacing: "Medium",
     });
 
-    for (const row of infoRows) {
-      body.push({
-        type: "TextBlock",
-        text: `${formatTime(row.created_at)} **[${flowLabel(row.flow)}]** ${row.message}`,
-        wrap: true,
-        size: "Small",
-        color: flowColor(row.flow),
-      });
+    for (const row of linteRows) {
+      body.push(...buildLogBlocks(row, "Accent"));
+    }
+  }
+
+  if (clickupRows.length > 0) {
+    body.push({
+      type: "TextBlock",
+      text: "ClickUp → Linte",
+      weight: "Bolder",
+      color: "Good",
+      spacing: "Medium",
+    });
+
+    for (const row of clickupRows) {
+      body.push(...buildLogBlocks(row, "Good"));
     }
   }
 
@@ -110,13 +151,7 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     });
 
     for (const row of errorRows) {
-      body.push({
-        type: "TextBlock",
-        text: `${formatTime(row.created_at)} **[${flowLabel(row.flow)}]** ${row.message}`,
-        wrap: true,
-        size: "Small",
-        color: "Attention",
-      });
+      body.push(...buildLogBlocks(row, "Attention"));
     }
   }
 
@@ -188,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let rows: LogRow[];
   try {
     const result = await sql`
-      SELECT level, flow, linte_code, task_id, message, created_at
+      SELECT level, flow, linte_code, task_id, task_name, message, created_at
       FROM automation_log
       WHERE created_at >= ${startUtc.toISOString()}
         AND created_at < ${endUtc.toISOString()}

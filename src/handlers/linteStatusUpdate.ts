@@ -42,22 +42,22 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
         : mapping.requiredCurrentStatus;
       await logInfo(
         "linte→clickup",
-        `Transição ignorada: ${task.name} | ${linteCode} está em "${task.currentStatus}", esperado "${expectedLabel}"`,
-        { linteCode, taskId: task.id }
+        `Transição ignorada: em "${task.currentStatus}", esperado "${expectedLabel}"`,
+        { linteCode, taskId: task.id, taskName: task.name }
       );
       return;
     }
   }
 
   await updateTaskStatus(task.id, mapping.targetStatus);
-  await logInfo("linte→clickup", `${task.name} | ${linteCode} atualizada para "${mapping.targetStatus}"`, { linteCode, taskId: task.id });
+  await logInfo("linte→clickup", `Atualizada para "${mapping.targetStatus}"`, { linteCode, taskId: task.id, taskName: task.name });
 
   if (linteStatusLabel === "Sob Análise do Jurídico") {
-    await extractPaymentInfo(linteCode, task.id);
+    await extractPaymentInfo(linteCode, task.id, task.name);
   }
 }
 
-async function extractPaymentInfo(linteCode: string, taskId: string): Promise<void> {
+async function extractPaymentInfo(linteCode: string, taskId: string, taskName: string): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 30000));
 
   try {
@@ -69,7 +69,7 @@ async function extractPaymentInfo(linteCode: string, taskId: string): Promise<vo
       const foundTexts = messages.length > 0
         ? messages.map((m) => `"${m.text}"`).join(" | ")
         : "nenhuma mensagem encontrada";
-      await logInfo("linte→clickup", `${linteCode} | comentário de pagamento não encontrado. Textos do DP: ${foundTexts}`, { linteCode, taskId });
+      await logInfo("linte→clickup", `Comentário de pagamento não encontrado. Textos do DP: ${foundTexts}`, { linteCode, taskId, taskName });
       return;
     }
 
@@ -83,8 +83,8 @@ async function extractPaymentInfo(linteCode: string, taskId: string): Promise<vo
 
     await setTaskDateField(taskId, "Previsão de pagamento", timestampMs);
     await addTaskComment(taskId, match.text);
-    await logInfo("linte→clickup", `Previsão de pagamento definida para ${day}/${month}/${year}`, { linteCode, taskId });
+    await logInfo("linte→clickup", `Previsão de pagamento definida para ${day}/${month}/${year}`, { linteCode, taskId, taskName });
   } catch (err) {
-    await logError("linte→clickup", `${linteCode} | erro ao extrair info de pagamento: ${err}`, { linteCode, taskId });
+    await logError("linte→clickup", `Erro ao extrair info de pagamento: ${err}`, { linteCode, taskId, taskName });
   }
 }

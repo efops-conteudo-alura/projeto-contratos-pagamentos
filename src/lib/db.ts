@@ -11,9 +11,11 @@ export async function ensureSchema(): Promise<void> {
       flow TEXT NOT NULL CHECK (flow IN ('linte→clickup', 'clickup→linte')),
       linte_code TEXT,
       task_id TEXT,
+      task_name TEXT,
       message TEXT NOT NULL
     )
   `;
+  await sql`ALTER TABLE automation_log ADD COLUMN IF NOT EXISTS task_name TEXT`;
 }
 
 export async function ensurePaymentQueueSchema(): Promise<void> {
