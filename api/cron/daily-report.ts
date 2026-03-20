@@ -32,7 +32,7 @@ function flowLabel(flow: string): string {
   return flow;
 }
 
-function buildLogBlocks(row: LogRow, color: string): object[] {
+function buildLogBlocks(row: LogRow): object[] {
   const linteUrl = row.linte_code ? `https://alura.linte.com/requests/${row.linte_code}` : null;
   const clickupUrl = row.task_id ? `https://app.clickup.com/t/${row.task_id}` : null;
 
@@ -50,18 +50,17 @@ function buildLogBlocks(row: LogRow, color: string): object[] {
       text: line1,
       wrap: true,
       size: "Small",
-      color,
     },
   ];
 
-  if (row.task_name) {
-    const taskText = clickupUrl ? `[${row.task_name}](${clickupUrl})` : row.task_name;
+  if (row.task_name || clickupUrl) {
+    const label = row.task_name ?? "Ver no ClickUp";
+    const taskText = clickupUrl ? `[${label}](${clickupUrl})` : label;
     blocks.push({
       type: "TextBlock",
       text: taskText,
       wrap: true,
       size: "Small",
-      color,
       spacing: "None",
       isSubtle: true,
     });
@@ -123,7 +122,7 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     });
 
     for (const row of linteRows) {
-      body.push(...buildLogBlocks(row, "Accent"));
+      body.push(...buildLogBlocks(row));
     }
   }
 
@@ -137,7 +136,7 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     });
 
     for (const row of clickupRows) {
-      body.push(...buildLogBlocks(row, "Good"));
+      body.push(...buildLogBlocks(row));
     }
   }
 
@@ -151,7 +150,7 @@ function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: s
     });
 
     for (const row of errorRows) {
-      body.push(...buildLogBlocks(row, "Attention"));
+      body.push(...buildLogBlocks(row));
     }
   }
 
