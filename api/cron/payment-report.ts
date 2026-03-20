@@ -75,7 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           body: [
             {
               type: "TextBlock",
-              text: `✅ Contratos finalizados — ${today}`,
+              text: `✅ Pagamentos agendados para hoje — ${today}`,
               weight: "Bolder",
               size: "Medium",
             },
