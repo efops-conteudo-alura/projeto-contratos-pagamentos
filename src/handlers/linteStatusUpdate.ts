@@ -66,7 +66,10 @@ async function extractPaymentInfo(linteCode: string, taskId: string): Promise<vo
     const match = messages.find((m) => pattern.test(m.text));
 
     if (!match) {
-      await logInfo("linte→clickup", "Comentário de pagamento não encontrado na requisição", { linteCode, taskId });
+      const foundTexts = messages.length > 0
+        ? messages.map((m) => `"${m.text}"`).join(" | ")
+        : "nenhuma mensagem encontrada";
+      await logInfo("linte→clickup", `${linteCode} | comentário de pagamento não encontrado. Textos do DP: ${foundTexts}`, { linteCode, taskId });
       return;
     }
 
@@ -82,6 +85,6 @@ async function extractPaymentInfo(linteCode: string, taskId: string): Promise<vo
     await addTaskComment(taskId, match.text);
     await logInfo("linte→clickup", `Previsão de pagamento definida para ${day}/${month}/${year}`, { linteCode, taskId });
   } catch (err) {
-    await logError("linte→clickup", `Erro ao extrair info de pagamento: ${err}`, { linteCode, taskId });
+    await logError("linte→clickup", `${linteCode} | erro ao extrair info de pagamento: ${err}`, { linteCode, taskId });
   }
 }
