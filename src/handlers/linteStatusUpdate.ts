@@ -62,27 +62,44 @@ async function extractPaymentInfo(linteCode: string, taskId: string, taskName: s
 
   try {
     const messages = await getRequisitionMessages(linteCode);
-    const pattern = /Pagamento programado (\d{2}\/\d{2})(?:\/\d{2,4})?\s*\(([^)]+)\)/i;
-    const match = messages.find((m) => pattern.test(m.text));
+    const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+    // Critério flexível: cobre as variações reais das mensagens do DP
+    // Palavras: pagamento, pgto, pagto, lançado/a, agendado/a, programado/a, progamado (typo), incluído/a
+    const hasPaymentKeyword = /pag(?:amento|to)|pgto|lan[çc]|agendad|programad|progamad|inclui[dí]/i;
+    // Data: dd/mm, d/m, dd/mm/yyyy — aceita espaço antes ou depois da barra (ex: "09 /1")
+    const datePattern = /(\d{1,2})\s*\/\s*(\d{1,2})(?:\/(\d{2,4}))?/;
+    const match = messages.find((m) => {
+      const text = stripHtml(m.content);
+      return hasPaymentKeyword.test(text) && datePattern.test(text);
+    });
 
     if (!match) {
       const foundTexts = messages.length > 0
-        ? messages.map((m) => `"${m.text}"`).join(" | ")
+        ? messages.map((m) => `"${stripHtml(m.content)}"`).join(" | ")
         : "nenhuma mensagem encontrada";
       await logInfo("linte→clickup", `Comentário de pagamento não encontrado. Textos do DP: ${foundTexts}`, { linteCode, taskId, taskName });
       return;
     }
 
-    const parsed = pattern.exec(match.text)!;
-    const [day, month] = parsed[1].split("/").map(Number);
+    const plainText = stripHtml(match.content);
+    const dateParsed = datePattern.exec(plainText)!;
+    const day = parseInt(dateParsed[1]);
+    const month = parseInt(dateParsed[2]);
+    const providedYear = dateParsed[3] ? parseInt(dateParsed[3]) : null;
 
     const now = new Date();
-    let year = now.getFullYear();
-    if (new Date(year, month - 1, day) < now) year++;
+    let year: number;
+    if (providedYear) {
+      year = providedYear < 100 ? 2000 + providedYear : providedYear;
+    } else {
+      year = now.getFullYear();
+      if (new Date(year, month - 1, day) < now) year++;
+    }
     const timestampMs = new Date(year, month - 1, day).getTime();
 
     await setTaskDateField(taskId, "Previsão de pagamento", timestampMs);
-    await addTaskComment(taskId, match.text);
+    await addTaskComment(taskId, plainText);
     await logInfo("linte→clickup", `Previsão de pagamento definida para ${day}/${month}/${year}`, { linteCode, taskId, taskName });
   } catch (err) {
     await logError("linte→clickup", `Erro ao extrair info de pagamento: ${err}`, { linteCode, taskId, taskName });
