@@ -55,6 +55,13 @@ src/
 2. Consulta `statusMapping.ts` — se não mapeado, apenas loga e retorna 200
 3. Busca tarefa no ClickUp pelo campo customizado **"Código Linte"**
 4. Atualiza status da tarefa encontrada
+5. Se o status for `"Sob Análise do Jurídico"`: aguarda 30s e executa `extractPaymentInfo` — busca mensagem de pagamento na Linte, extrai data e atualiza campo **"Previsão de pagamento"** + adiciona comentário no ClickUp
+
+**Extração de data de pagamento (`extractPaymentInfo`):**
+- Busca mensagens via `requisitionMessages` (Linte API)
+- Critério de match: mensagem contém keyword de pagamento (`pagamento`, `pgto`, `pagto`, `lançamento`, `agendado`, `programado`, `progamado`, `incluído`) **e** uma data no formato `dd/mm` ou `dd/mm/yyyy` (aceita espaço antes/depois da barra)
+- Se o ano não vier na mensagem, usa o ano corrente — se a data já passou, avança para o próximo ano
+- O conteúdo das mensagens pode vir com HTML (`<p>...</p>`); é feito strip antes de processar
 
 **Edge cases:**
 - Status não mapeado → logar e ignorar (não retornar erro)
@@ -108,6 +115,10 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 - Protocolo: **GraphQL**
 - Base URL: `https://api.linte.com/graphql`
 - Auth: header `key: <LINTE_API_KEY>`
+
+**Queries confirmadas pelo schema (via introspection):**
+- Mensagens de uma requisição: `requisitionMessages(requisitionId: ID!, limit: Int!)` — retorna `{ content, createdAt, sender { name } }`. O campo é `content`, **não** `text`. Não existe `requisition { messages }` no schema.
+- O tipo `Requisition` **não** possui subcampo de mensagens — as mensagens são uma query separada na raiz.
 
 ### `src/services/clickup.ts`
 - Protocolo: **REST**
@@ -184,3 +195,5 @@ Para **adicionar um novo mapeamento**, editar apenas `src/config/statusMapping.t
 | Status não atualiza | Status da Linte não está no mapeamento | Checar log — deve aparecer como "ignorado" |
 | Comentário não enviado (PJ) | Sem anexo na tarefa | Confirmar que NF foi anexada antes do comentário |
 | Webhook não dispara | URL de webhook errada no painel | Confirmar URL no painel da Linte e do ClickUp |
+| Previsão de pagamento não atualiza | Mensagem do DP não encontrada | Ver log — exibe todos os textos encontrados; verificar se contém keyword de pagamento + data dd/mm |
+| Erro "Linte API HTTP 400" ao buscar mensagens | Query errada (campo `messages` não existe no schema) | Usar `requisitionMessages(requisitionId, limit)` com campo `content` |

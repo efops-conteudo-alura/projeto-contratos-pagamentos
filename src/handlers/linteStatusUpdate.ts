@@ -96,7 +96,7 @@ async function extractPaymentInfo(linteCode: string, taskId: string, taskName: s
       year = now.getFullYear();
       if (new Date(year, month - 1, day) < now) year++;
     }
-    const timestampMs = new Date(year, month - 1, day).getTime();
+    const timestampMs = Date.UTC(year, month - 1, day, 12, 0, 0);
 
     await setTaskDateField(taskId, "Previsão de pagamento", timestampMs);
     await addTaskComment(taskId, plainText);
