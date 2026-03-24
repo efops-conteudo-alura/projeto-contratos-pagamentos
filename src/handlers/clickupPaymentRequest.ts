@@ -46,9 +46,14 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
   } else if (tipo === "PJ") {
     messageText = "Olá! Segue NF. Podem liberar o pagamento. Obrigado!";
     const attachments = task.attachments ?? [];
-    const lastAttachment = attachments[attachments.length - 1];
+    const attachmentsSummary = attachments.map((a) => `${a.title} (${a.url})`).join(" | ") || "nenhum";
+    await logInfo("clickup→linte", `Anexos encontrados na tarefa PJ (${attachments.length}): ${attachmentsSummary}`, { linteCode, taskId: task.id, taskName: task.name });
+    const pdfAttachments = attachments.filter((a) => a.title.toLowerCase().endsWith(".pdf"));
+    const lastAttachment = pdfAttachments[pdfAttachments.length - 1];
     if (lastAttachment) {
       messageText += `\nNF: ${lastAttachment.url}`;
+    } else if (attachments.length > 0) {
+      await logError("clickup→linte", `PJ sem anexo PDF — enviando mensagem sem URL`, { linteCode, taskId: task.id, taskName: task.name });
     } else {
       await logError("clickup→linte", `PJ sem anexo — enviando mensagem sem URL`, { linteCode, taskId: task.id, taskName: task.name });
     }
