@@ -41,7 +41,7 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 
   if (tipo === "RPA") {
     messageText = "Olá! Podem liberar o pagamento. Obrigado!";
-  } else if (tipo === "INVOICE") {
+  } else if (tipo.includes("INVOICE")) {
     messageText = "Olá! Podem gerar o INVOICE. Obrigado!";
   } else if (tipo === "PJ") {
     messageText = "Olá! Segue NF. Podem liberar o pagamento. Obrigado!";
