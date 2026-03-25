@@ -86,7 +86,7 @@ export interface ClickUpTask {
   id: string;
   name: string;
   custom_fields: ClickUpCustomField[];
-  attachments?: { url: string; title: string; id: string }[];
+  attachments?: { url: string; title: string; id: string; date_created?: string }[];
 }
 
 export async function getTask(taskId: string): Promise<ClickUpTask | null> {

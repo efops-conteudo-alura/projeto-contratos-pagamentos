@@ -48,7 +48,9 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     const attachments = task.attachments ?? [];
     const attachmentsSummary = attachments.map((a) => `${a.title} (${a.url})`).join(" | ") || "nenhum";
     await logInfo("clickup→linte", `Anexos encontrados na tarefa PJ (${attachments.length}): ${attachmentsSummary}`, { linteCode, taskId: task.id, taskName: task.name });
-    const pdfAttachments = attachments.filter((a) => a.title.toLowerCase().endsWith(".pdf"));
+    const pdfAttachments = attachments
+      .filter((a) => a.title.toLowerCase().endsWith(".pdf"))
+      .sort((a, b) => Number(a.date_created ?? 0) - Number(b.date_created ?? 0));
     const lastAttachment = pdfAttachments[pdfAttachments.length - 1];
     if (lastAttachment) {
       messageText += `\nNF: ${lastAttachment.url}`;
