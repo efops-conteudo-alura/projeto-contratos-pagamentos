@@ -9,7 +9,7 @@
     },
     {
       "path": "/api/cron/payment-report",
-      "schedule": "0 15 * * *"
+      "schedule": "0 20 * * *"
     }
   ]
 }
