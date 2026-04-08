@@ -57,28 +57,57 @@ export async function handleLinteStatusUpdate(payload: LinteWebhookPayload): Pro
   }
 }
 
+const RETRY_ATTEMPTS = 3;
+const RETRY_INTERVAL_MS = 10000;
+
 async function extractPaymentInfo(linteCode: string, taskId: string, taskName: string): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 30000));
+  const stripHtml = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&ccedil;/gi, "ç")
+      .replace(/&atilde;/gi, "ã")
+      .replace(/&otilde;/gi, "õ")
+      .replace(/&aacute;/gi, "á")
+      .replace(/&eacute;/gi, "é")
+      .replace(/&iacute;/gi, "í")
+      .replace(/&oacute;/gi, "ó")
+      .replace(/&uacute;/gi, "ú")
+      .replace(/&amp;/gi, "&")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // Critério flexível: cobre as variações reais das mensagens do DP
+  // Palavras: pagamento, pgto, pagto, lançado/a, agendado/a, programado/a, progamado (typo), incluído/a
+  const hasPaymentKeyword = /pag(?:amento|to)|pgto|lan[çc]|agendad|programad|progamad|inclui[dí]/i;
+  // Data: dd/mm, d/m, dd/mm/yyyy — aceita espaço antes ou depois da barra (ex: "09 /1")
+  const datePattern = /(\d{1,2})\s*\/\s*(\d{1,2})(?:\/(\d{2,4}))?/;
 
   try {
-    const messages = await getRequisitionMessages(linteCode);
-    const stripHtml = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    let match: { content: string } | undefined;
+    let messages: { content: string }[] = [];
 
-    // Critério flexível: cobre as variações reais das mensagens do DP
-    // Palavras: pagamento, pgto, pagto, lançado/a, agendado/a, programado/a, progamado (typo), incluído/a
-    const hasPaymentKeyword = /pag(?:amento|to)|pgto|lan[çc]|agendad|programad|progamad|inclui[dí]/i;
-    // Data: dd/mm, d/m, dd/mm/yyyy — aceita espaço antes ou depois da barra (ex: "09 /1")
-    const datePattern = /(\d{1,2})\s*\/\s*(\d{1,2})(?:\/(\d{2,4}))?/;
-    const match = messages.find((m) => {
-      const text = stripHtml(m.content);
-      return hasPaymentKeyword.test(text) && datePattern.test(text);
-    });
+    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+      messages = await getRequisitionMessages(linteCode);
+      match = messages.find((m) => {
+        const text = stripHtml(m.content);
+        return hasPaymentKeyword.test(text) && datePattern.test(text);
+      });
+
+      if (match) break;
+
+      if (attempt < RETRY_ATTEMPTS) {
+        await logInfo("linte→clickup", `Mensagem de pagamento não encontrada (tentativa ${attempt}/${RETRY_ATTEMPTS}), aguardando ${RETRY_INTERVAL_MS / 1000}s`, { linteCode, taskId, taskName });
+        await new Promise((resolve) => setTimeout(resolve, RETRY_INTERVAL_MS));
+      }
+    }
 
     if (!match) {
       const foundTexts = messages.length > 0
         ? messages.map((m) => `"${stripHtml(m.content)}"`).join(" | ")
         : "nenhuma mensagem encontrada";
-      await logInfo("linte→clickup", `Comentário de pagamento não encontrado. Textos do DP: ${foundTexts}`, { linteCode, taskId, taskName });
+      await logInfo("linte→clickup", `Comentário de pagamento não encontrado após ${RETRY_ATTEMPTS} tentativas. Textos do DP: ${foundTexts}`, { linteCode, taskId, taskName });
       return;
     }
 
