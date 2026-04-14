@@ -81,8 +81,42 @@ async function extractPaymentInfo(linteCode: string, taskId: string, taskName: s
   // Critério flexível: cobre as variações reais das mensagens do DP
   // Palavras: pagamento, pgto, pagto, lançado/a, agendado/a, programado/a, progamado (typo), incluído/a
   const hasPaymentKeyword = /pag(?:amento|to)|pgto|lan[çc]|agendad|programad|progamad|inclui[dí]/i;
-  // Data: dd/mm, d/m, dd/mm/yyyy — aceita espaço antes ou depois da barra (ex: "09 /1")
-  const datePattern = /(\d{1,2})\s*\/\s*(\d{1,2})(?:\/(\d{2,4}))?/;
+
+  const MONTH_NAMES: Record<string, number> = {
+    janeiro: 1, jan: 1,
+    fevereiro: 2, fev: 2,
+    março: 3, marco: 3, mar: 3,
+    abril: 4, abr: 4,
+    maio: 5, mai: 5,
+    junho: 6, jun: 6,
+    julho: 7, jul: 7,
+    agosto: 8, ago: 8,
+    setembro: 9, set: 9,
+    outubro: 10, out: 10,
+    novembro: 11, nov: 11,
+    dezembro: 12, dez: 12,
+  };
+
+  // Data numérica: dd/mm ou dd/mm/yyyy (aceita espaço ao redor da barra)
+  const numericDatePattern = /(\d{1,2})\s*\/\s*(\d{1,2})(?:\/(\d{2,4}))?/;
+  // Data com nome do mês em português: "24/Abril" ou "24 de Abril"
+  const namedMonthPattern = new RegExp(
+    `(\\d{1,2})\\s*(?:\\/|\\s+de\\s+)\\s*(${Object.keys(MONTH_NAMES).join("|")})`,
+    "i"
+  );
+
+  function parseDateFromText(text: string): { day: number; month: number; year: number | null } | null {
+    const num = numericDatePattern.exec(text);
+    if (num) {
+      return { day: parseInt(num[1]), month: parseInt(num[2]), year: num[3] ? parseInt(num[3]) : null };
+    }
+    const named = namedMonthPattern.exec(text);
+    if (named) {
+      const monthNum = MONTH_NAMES[named[2].toLowerCase()];
+      if (monthNum) return { day: parseInt(named[1]), month: monthNum, year: null };
+    }
+    return null;
+  }
 
   try {
     let match: { content: string } | undefined;
@@ -92,7 +126,7 @@ async function extractPaymentInfo(linteCode: string, taskId: string, taskName: s
       messages = await getRequisitionMessages(linteCode);
       match = messages.find((m) => {
         const text = stripHtml(m.content);
-        return hasPaymentKeyword.test(text) && datePattern.test(text);
+        return hasPaymentKeyword.test(text) && parseDateFromText(text) !== null;
       });
 
       if (match) break;
@@ -112,10 +146,9 @@ async function extractPaymentInfo(linteCode: string, taskId: string, taskName: s
     }
 
     const plainText = stripHtml(match.content);
-    const dateParsed = datePattern.exec(plainText)!;
-    const day = parseInt(dateParsed[1]);
-    const month = parseInt(dateParsed[2]);
-    const providedYear = dateParsed[3] ? parseInt(dateParsed[3]) : null;
+    const parsed = parseDateFromText(plainText)!;
+    const { day, month } = parsed;
+    const providedYear = parsed.year;
 
     const now = new Date();
     let year: number;
