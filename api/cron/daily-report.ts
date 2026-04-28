@@ -21,14 +21,14 @@ function formatTime(isoString: string): string {
 }
 
 function flowColor(flow: string): string {
-  if (flow === "linte→clickup") return "Accent";   // azul
-  if (flow === "clickup→linte") return "Good";     // verde
+  if (flow === "linte→clickup" || flow === "linte-v2→clickup") return "Accent";   // azul
+  if (flow === "clickup→linte" || flow === "clickup→linte-v2") return "Good";     // verde
   return "Default";
 }
 
 function flowLabel(flow: string): string {
-  if (flow === "linte→clickup") return "Linte → ClickUp";
-  if (flow === "clickup→linte") return "ClickUp → Linte";
+  if (flow === "linte→clickup" || flow === "linte-v2→clickup") return "Linte → ClickUp";
+  if (flow === "clickup→linte" || flow === "clickup→linte-v2") return "ClickUp → Linte";
   return flow;
 }
 
@@ -70,8 +70,8 @@ function buildLogBlocks(row: LogRow): object[] {
 }
 
 function buildAdaptiveCard(infoRows: LogRow[], errorRows: LogRow[], dateLabel: string): object {
-  const linteRows = infoRows.filter((r) => r.flow === "linte→clickup");
-  const clickupRows = infoRows.filter((r) => r.flow === "clickup→linte");
+  const linteRows = infoRows.filter((r) => r.flow === "linte→clickup" || r.flow === "linte-v2→clickup");
+  const clickupRows = infoRows.filter((r) => r.flow === "clickup→linte" || r.flow === "clickup→linte-v2");
 
   if (linteRows.length === 0 && clickupRows.length === 0 && errorRows.length === 0) {
     return {

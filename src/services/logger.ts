@@ -1,6 +1,6 @@
 import { sql } from "../lib/db";
 
-type Flow = "linte→clickup" | "clickup→linte";
+type Flow = "linte→clickup" | "clickup→linte" | "linte-v2→clickup" | "clickup→linte-v2";
 type Context = { linteCode?: string; taskId?: string; taskName?: string };
 
 async function insertLog(

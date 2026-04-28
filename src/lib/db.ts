@@ -8,7 +8,7 @@ export async function ensureSchema(): Promise<void> {
       id SERIAL PRIMARY KEY,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       level TEXT NOT NULL CHECK (level IN ('info', 'error')),
-      flow TEXT NOT NULL CHECK (flow IN ('linte→clickup', 'clickup→linte')),
+      flow TEXT NOT NULL,
       linte_code TEXT,
       task_id TEXT,
       task_name TEXT,
@@ -16,6 +16,7 @@ export async function ensureSchema(): Promise<void> {
     )
   `;
   await sql`ALTER TABLE automation_log ADD COLUMN IF NOT EXISTS task_name TEXT`;
+  await sql`ALTER TABLE automation_log DROP CONSTRAINT IF EXISTS automation_log_flow_check`;
 }
 
 export async function ensurePaymentQueueSchema(): Promise<void> {

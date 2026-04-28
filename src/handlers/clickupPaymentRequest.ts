@@ -1,5 +1,6 @@
-import { getTask, getDropdownValue } from "../services/clickup";
+import { getTask, getDropdownValue, type ClickUpTask } from "../services/clickup";
 import { sendMessage } from "../services/linte";
+import { findInstanceByLinteCode, updateInstanceStatus } from "../services/linte-v2";
 import { logInfo, logError } from "../services/logger";
 
 interface ClickUpCommentPayload {
@@ -37,6 +38,12 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
     return;
   }
   const tipo = tipoPrestador.toUpperCase();
+
+  if (linteCode.startsWith("ALN-")) {
+    await handlePaymentV2(task, linteCode, tipo);
+    return;
+  }
+
   let messageText: string;
 
   if (tipo === "RPA") {
@@ -68,4 +75,46 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 
   await sendMessage(linteCode, messageText);
   await logInfo("clickup→linte", `Pedido de pagamento enviado (${tipoPrestador})`, { linteCode, taskId: task.id, taskName: task.name });
+}
+
+async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: string): Promise<void> {
+  const instanceId = await findInstanceByLinteCode(linteCode);
+  if (!instanceId) {
+    await logError("clickup→linte-v2", `Instância Linte v2 não encontrada para código "${linteCode}"`, {
+      linteCode,
+      taskId: task.id,
+      taskName: task.name,
+    });
+    return;
+  }
+
+  await updateInstanceStatus(instanceId, "Pagamento Liberado");
+
+  if (tipo === "PJ") {
+    const attachments = task.attachments ?? [];
+    const pdfAttachments = attachments
+      .filter((a) => a.title.toLowerCase().endsWith(".pdf"))
+      .sort((a, b) => Number(b.date_created ?? 0) - Number(a.date_created ?? 0));
+    const lastPdf = pdfAttachments[0];
+    if (lastPdf) {
+      // TODO: fazer upload do PDF para a pasta documentos da Linte v2 quando a API disponibilizar mutation de upload.
+      await logInfo("clickup→linte-v2", `PJ: NF identificada (${lastPdf.title}) — upload para Linte v2 pendente (API sem mutation de upload)`, {
+        linteCode,
+        taskId: task.id,
+        taskName: task.name,
+      });
+    } else {
+      await logError("clickup→linte-v2", `PJ: sem PDF nos anexos da tarefa`, {
+        linteCode,
+        taskId: task.id,
+        taskName: task.name,
+      });
+    }
+  }
+
+  await logInfo("clickup→linte-v2", `Pagamento liberado na Linte v2 (${tipo})`, {
+    linteCode,
+    taskId: task.id,
+    taskName: task.name,
+  });
 }

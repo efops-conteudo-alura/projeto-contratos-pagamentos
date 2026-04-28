@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/webhooks/linte.ts": { "maxDuration": 60 }
+    "api/webhooks/linte.ts": { "maxDuration": 60 },
+    "api/webhooks/linte-v2.ts": { "maxDuration": 60 }
   },
   "crons": [
     {

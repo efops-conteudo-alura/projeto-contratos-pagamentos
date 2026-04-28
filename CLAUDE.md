@@ -24,18 +24,22 @@ Automação entre **Linte** (sistema de gestão de contratos) e **ClickUp** (ger
 ```
 api/
   webhooks/
-    linte.ts            # Entrada: webhooks da Linte
+    linte.ts            # Entrada: webhooks da Linte v1
+    linte-v2.ts         # Entrada: webhooks da Linte v2 (WORKFLOW_EVENT)
     clickup.ts          # Entrada: webhooks do ClickUp
   cron/
     daily-report.ts     # Cron job: relatório diário para o Teams
 src/
   config/
-    statusMapping.ts    # Mapeamento de status Linte → ClickUp
+    statusMapping.ts    # Mapeamento de status Linte v1 → ClickUp
+    statusMappingV2.ts  # Mapeamento de status Linte v2 → ClickUp
   handlers/
-    linteStatusUpdate.ts      # Fluxo 1: atualiza tarefa no ClickUp
-    clickupPaymentRequest.ts  # Fluxo 2: envia comentário na Linte
+    linteStatusUpdate.ts      # Fluxo 1 (v1): atualiza tarefa no ClickUp
+    linteV2StatusUpdate.ts    # Fluxo 1 (v2): atualiza tarefa no ClickUp
+    clickupPaymentRequest.ts  # Fluxo 2: rota para v1 ou v2 por prefixo do código
   services/
-    linte.ts     # Cliente GraphQL da Linte
+    linte.ts     # Cliente GraphQL da Linte v1
+    linte-v2.ts  # Cliente GraphQL da Linte v2
     clickup.ts   # Cliente REST do ClickUp
     logger.ts    # Logger: grava eventos no Postgres e no console
   lib/
@@ -74,21 +78,57 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 
 ---
 
+### Fluxo 1b — Linte v2 → ClickUp (sync de status)
+
+**Trigger:** Webhook `WORKFLOW_EVENT` em `api/webhooks/linte-v2.ts`
+
+**Identificação de demanda:** Variável com `label: "ID Linte"` (UUID `pP3Ds4ewFwjsWryHT`) dentro de `payload.variables`. O valor é o código legível (ex: `"ALN-254"`).
+
+**Lógica:**
+1. Filtra apenas `type === "WORKFLOW_EVENT"` — ignora demais
+2. Extrai `linteCode` percorrendo `payload.payload.variables` em busca de `label === "ID Linte"`
+3. Se variável não encontrada: loga e ignora (demandas antigas sem o campo)
+4. Consulta `statusMappingV2.ts` — se status não mapeado, loga e ignora
+5. Busca tarefa no ClickUp pelo campo **"Código Linte"** (mesmo campo do v1)
+6. Atualiza status da tarefa
+
+**Mapeamento de status v2:**
+
+| Linte v2              | ClickUp                 |
+|-----------------------|-------------------------|
+| Em Assinatura         | ENVIADO PARA ASSINATURA |
+| Enviar Nota Fiscal    | CONTRATO ATIVO          |
+| demais                | ignorar (logar)         |
+
+**Sem `extractPaymentInfo`** — não há equivalente no fluxo v2.
+
+---
+
 ### Fluxo 2 — ClickUp → Linte (pedido de pagamento)
 
 **Trigger:** Webhook `taskCommentPosted` com texto **exato** `"pedido de pagamento enviado"` em `api/webhooks/clickup.ts`
 
-**Lógica:**
+**Roteamento v1/v2:** O campo **"Código Linte"** da tarefa determina o fluxo:
+- `ALU-*` → Linte v1 (comportamento atual)
+- `ALN-*` → Linte v2
+
+**Lógica v1:**
 1. Recebe evento com ID da tarefa
 2. Busca tarefa no ClickUp para ler campo **"Tipo de prestador"**
 3. Comportamento por tipo:
-   - `RPA` / `INVOICE` → envia comentário simples na demanda Linte
-   - `PJ` → busca último anexo da tarefa (a NF) e envia comentário com URL na Linte
+   - `RPA` / `INVOICE` → envia comentário simples na demanda Linte v1
+   - `PJ` → busca último PDF anexado na tarefa e envia comentário com URL na Linte v1
+
+**Lógica v2:**
+1. Busca o `instanceId` real via `findInstanceByLinteCode` (query `BuscarPorCustomId` na Linte v2)
+2. Chama `instanceUpdate` para mudar status para **"Pagamento Liberado"**
+3. Se PJ: identifica o PDF mais recente nos anexos do ClickUp e loga (upload para Linte v2 pendente — API sem mutation de upload)
 
 **Edge cases:**
 - Campo "Tipo de prestador" ausente ou valor não reconhecido → logar e não processar
-- Tarefa PJ sem anexo → logar aviso, não enviar comentário
+- Tarefa PJ sem anexo PDF → logar aviso
 - Comentário que não seja exatamente "pedido de pagamento enviado" → ignorar silenciosamente
+- v2: `instanceId` não encontrado na Linte v2 → logar erro, não processar
 
 ---
 
@@ -139,9 +179,18 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 ## Variáveis de ambiente
 
 ```
-LINTE_API_KEY=          # Chave de autenticação da API da Linte
+# Linte v1 (manter enquanto contratos antigos existirem)
+LINTE_API_KEY=          # Chave de autenticação da API da Linte v1
+
+# Linte v2
+LINTE_V2_TOKEN=         # JWT Bearer Token da nova API Linte v2 (obtido com TI)
+LINTE_V2_CATEGORY_ID=   # ID da categoria de contratos na Linte v2 (ex: c9a103edc6d45f96a1140413)
+
+# ClickUp
 CLICKUP_API_TOKEN=      # Token pessoal ou OAuth do ClickUp
 CLICKUP_LIST_ID=        # ID da lista onde as tarefas estão
+
+# Banco e infra
 POSTGRES_URL=           # Connection string do Neon Postgres (ex: postgres://user:pass@host/db)
 TEAMS_WEBHOOK_URL=      # URL do webhook do canal do Teams para o relatório diário
 CRON_SECRET=            # Segredo injetado pela Vercel nos cron jobs (gerado automaticamente)
@@ -184,6 +233,86 @@ Para **adicionar um novo mapeamento**, editar apenas `src/config/statusMapping.t
 
 - Validar que requisições chegam dos IPs/origens esperados, se a Linte ou ClickUp fornecerem assinatura de payload.
 - Não logar valores de campos sensíveis (ex: URLs de NF, dados de contratos).
+
+---
+
+## Migração para Nova API Linte
+
+> **Status (2026-04-28):** Integração v2 implementada e rodando em paralelo com a v1. Os dois fluxos coexistem — v1 para códigos `ALU-*`, v2 para códigos `ALN-*`.
+
+### Comparativo v1 vs v2
+
+| | Linte v1 (produção) | Linte v2 (paralelo) |
+|---|---|---|
+| Endpoint GraphQL | `https://api.linte.com/graphql` | `https://docs-api.linte.com/graphql` |
+| Autenticação | Header `key: <LINTE_API_KEY>` | Header `Authorization: Bearer <LINTE_V2_TOKEN>` |
+| Webhook endpoint | `api/webhooks/linte.ts` | `api/webhooks/linte-v2.ts` |
+| Tipo de evento | `REQUISITION_STATUS_WAS_UPDATED_WEBHOOK` | `WORKFLOW_EVENT` |
+| ID da demanda | `payload.requisition.id` (ex: `ALU-HSCAMS`) | variável `label: "ID Linte"` em `payload.payload.variables` (UUID: `pP3Ds4ewFwjsWryHT`) |
+| Status no payload | String legível (ex: `"Sob Análise do Jurídico"`) | Objeto `{ id, name }` — `name` já é legível |
+| Busca de arquivos | Anexos via API do ClickUp | `instanceFiles(instanceId)` — URL expira em 10 min |
+| Mutation de status | não se aplica | `instanceUpdate(id, { status: "Nome do Status" })` |
+| Upload de arquivo | `sendMessage` com URL | **Não documentado** — pendente com TI |
+
+### Payload real do webhook `WORKFLOW_EVENT` com variável "ID Linte" (confirmado em 2026-04-28)
+
+```json
+{
+  "_id": "dvsAkRnvj8kdPTJqe",
+  "webhookId": "PgAqRJXDkMAA3rpBk",
+  "type": "WORKFLOW_EVENT",
+  "categoryId": "c9a103edc6d45f96a1140413",
+  "companyId": "qMBnvX6oswxmPhNJf",
+  "instanceId": "6B5DZWH7Z8TGaxAKn",
+  "payload": {
+    "instanceId": "6B5DZWH7Z8TGaxAKn",
+    "categoryId": "c9a103edc6d45f96a1140413",
+    "variables": {
+      "pP3Ds4ewFwjsWryHT": {
+        "label": "ID Linte",
+        "type": "text",
+        "value": "ALN-254"
+      }
+    },
+    "status": {
+      "id": "yNqSMByPtvGSRYr8k",
+      "name": "Enviar Nota Fiscal"
+    }
+  },
+  "timestamp": 1777384707018,
+  "createdAt": "2026-04-28T13:58:27.018Z"
+}
+```
+
+### Detalhes técnicos da v2
+
+**Busca de instanceId pelo código legível:**
+`findInstanceByLinteCode("ALN-254")` extrai `"254"` e faz:
+```graphql
+instance(filter: { custom: { categoryId: LINTE_V2_CATEGORY_ID, id: "254" } }) { id }
+```
+⚠️ Assumimos que `custom.id` aceita o número do `identifier` — verificar em produção.
+
+**Mudança de status:**
+```graphql
+instanceUpdate(id: $instanceId, input: { status: "Pagamento Liberado" })
+```
+⚠️ Assumimos que a API aceita o nome do status — verificar se exige o ID.
+
+### O que ainda precisa ser confirmado com o TI da Linte
+
+- [ ] `LINTE_V2_TOKEN` — como obter o JWT, validade e se há refresh
+- [ ] Confirmar se `instance(filter: { custom: { categoryId, id: "254" } })` retorna a instância correta para `ALN-254`
+- [ ] Confirmar se `instanceUpdate` aceita nome do status ou exige ID
+- [ ] Existe mutation de upload de arquivo? (necessária para o fluxo PJ — anexar NF na Linte v2)
+- [ ] Cadastrar webhook `WORKFLOW_EVENT` apontando para `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2`
+
+### Quando desligar a Linte v1
+
+Quando o TI confirmar que todos os contratos estão na v2:
+- Remover `api/webhooks/linte.ts`, `src/services/linte.ts`, `src/handlers/linteStatusUpdate.ts`, `src/config/statusMapping.ts`
+- Remover a variável `LINTE_API_KEY`
+- Renomear arquivos `*v2*` retirando o sufixo
 
 ---
 
