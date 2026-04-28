@@ -1,6 +1,6 @@
 import { getTask, getDropdownValue, type ClickUpTask } from "../services/clickup";
 import { sendMessage } from "../services/linte";
-import { findInstanceByLinteCode, updateInstanceStatus } from "../services/linte-v2";
+import { findInstanceByLinteCode, updateInstanceStatus, attachFileToInstance } from "../services/linte-v2";
 import { logInfo, logError } from "../services/logger";
 
 interface ClickUpCommentPayload {
@@ -97,8 +97,8 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
       .sort((a, b) => Number(b.date_created ?? 0) - Number(a.date_created ?? 0));
     const lastPdf = pdfAttachments[0];
     if (lastPdf) {
-      // TODO: fazer upload do PDF para a pasta documentos da Linte v2 quando a API disponibilizar mutation de upload.
-      await logInfo("clickup→linte-v2", `PJ: NF identificada (${lastPdf.title}) — upload para Linte v2 pendente (API sem mutation de upload)`, {
+      await attachFileToInstance(instanceId, lastPdf.url);
+      await logInfo("clickup→linte-v2", `PJ: NF anexada na Linte v2 (${lastPdf.title})`, {
         linteCode,
         taskId: task.id,
         taskName: task.name,

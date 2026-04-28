@@ -1,178 +1,120 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Comandos
 
 ```bash
-# Build TypeScript
-npx tsc
-
-# Desenvolvimento local com Vercel (se CLI instalado)
-npx vercel dev
-
-# Verificar tipos sem emitir arquivos
-npx tsc --noEmit
+npx tsc --noEmit   # Verificar tipos
+npx tsc            # Build
+npx vercel dev     # Dev local (requer Vercel CLI)
 ```
 
 Não há scripts de teste ou lint configurados.
 
 ## Arquitetura
 
-Automação entre **Linte** (sistema de gestão de contratos) e **ClickUp** (gerenciamento de tarefas). Implementado como serverless functions na Vercel.
+Automação entre **Linte** (gestão de contratos) e **ClickUp** (tarefas). Serverless functions na Vercel.
 
 ```
 api/
   webhooks/
-    linte.ts            # Entrada: webhooks da Linte v1
-    linte-v2.ts         # Entrada: webhooks da Linte v2 (WORKFLOW_EVENT)
-    clickup.ts          # Entrada: webhooks do ClickUp
+    linte.ts            # Webhooks Linte v1
+    linte-v2.ts         # Webhooks Linte v2 (WORKFLOW_EVENT)
+    clickup.ts          # Webhooks ClickUp
   cron/
-    daily-report.ts     # Cron job: relatório diário para o Teams
+    daily-report.ts     # Relatório diário → Teams (08h BRT)
 src/
   config/
-    statusMapping.ts    # Mapeamento de status Linte v1 → ClickUp
-    statusMappingV2.ts  # Mapeamento de status Linte v2 → ClickUp
+    statusMapping.ts    # Status Linte v1 → ClickUp
+    statusMappingV2.ts  # Status Linte v2 → ClickUp
   handlers/
-    linteStatusUpdate.ts      # Fluxo 1 (v1): atualiza tarefa no ClickUp
-    linteV2StatusUpdate.ts    # Fluxo 1 (v2): atualiza tarefa no ClickUp
-    clickupPaymentRequest.ts  # Fluxo 2: rota para v1 ou v2 por prefixo do código
+    linteStatusUpdate.ts      linteV2StatusUpdate.ts
+    clickupPaymentRequest.ts  clickupFinalized.ts
   services/
-    linte.ts     # Cliente GraphQL da Linte v1
-    linte-v2.ts  # Cliente GraphQL da Linte v2
-    clickup.ts   # Cliente REST do ClickUp
-    logger.ts    # Logger: grava eventos no Postgres e no console
+    linte.ts   linte-v2.ts   clickup.ts   logger.ts
   lib/
-    db.ts        # Cliente Neon Postgres + função ensureSchema()
+    db.ts
 ```
 
 ---
 
 ## Fluxos
 
-### Fluxo 1 — Linte → ClickUp (sync de status)
+### Fluxo 1 — Linte v1 → ClickUp
 
-**Trigger:** Webhook `REQUISITION_STATUS_WAS_UPDATED_WEBHOOK` em `api/webhooks/linte.ts`
+**Trigger:** `REQUISITION_STATUS_WAS_UPDATED_WEBHOOK` em `api/webhooks/linte.ts`
 
-**Lógica:**
-1. Recebe evento com código da requisição (ex: `ALU-HSCAMS`) e novo status
-2. Consulta `statusMapping.ts` — se não mapeado, apenas loga e retorna 200
-3. Busca tarefa no ClickUp pelo campo customizado **"Código Linte"**
-4. Atualiza status da tarefa encontrada
-5. Se o status for `"Sob Análise do Jurídico"`: aguarda 30s e executa `extractPaymentInfo` — busca mensagem de pagamento na Linte, extrai data e atualiza campo **"Previsão de pagamento"** + adiciona comentário no ClickUp
+1. Mapeia status via `statusMapping.ts` — se não mapeado, ignora
+2. Busca tarefa pelo campo **"Código Linte"** (`findTaskByLinteCode` — UUID do campo cacheado em memória)
+3. Atualiza status
+4. Se `"Sob Análise do Jurídico"`: executa `extractPaymentInfo` (3 tentativas × 10s) — extrai data de pagamento de mensagens da Linte e atualiza **"Previsão de pagamento"** + comentário no ClickUp
 
-**Extração de data de pagamento (`extractPaymentInfo`):**
-- Busca mensagens via `requisitionMessages` (Linte API)
-- Critério de match: mensagem contém keyword de pagamento (`pagamento`, `pgto`, `pagto`, `lançamento`, `agendado`, `programado`, `progamado`, `incluído`) **e** uma data no formato `dd/mm` ou `dd/mm/yyyy` (aceita espaço antes/depois da barra)
-- Se o ano não vier na mensagem, usa o ano corrente — se a data já passou, avança para o próximo ano
-- O conteúdo das mensagens pode vir com HTML (`<p>...</p>`); é feito strip antes de processar
+**Mapeamentos v1:**
 
-**Edge cases:**
-- Status não mapeado → logar e ignorar (não retornar erro)
-- Tarefa não encontrada no ClickUp → logar erro, retornar 200 (não reprocessar)
+| Linte v1 | ClickUp |
+|---|---|
+| DP \| Em Aberto | EM ANÁLISE |
+| DP \| Aguardando Assinatura | ENVIADO PARA ASSINATURA |
+| DP \| Ativo | CONTRATO ATIVO |
+| Sob Análise do Jurídico | AGUARDANDO PAGAMENTO |
 
-**Busca de tarefa por Código Linte:**
-Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query param na API do ClickUp (`custom_fields=[...]`). O UUID do campo "Código Linte" é resolvido dinamicamente via `GET /list/{LIST_ID}/field` (função privada `getListCustomFieldId`) e cacheado em memória por processo — evita uma chamada extra a cada webhook. Se a API falhar ou o campo não existir, o cache não é populado e a próxima chamada tenta novamente.
-
-> `searchTasksByCustomField` (busca paginada com filtro em memória) ainda existe no serviço mas não é usada pelo handler. Foi mantida para uso futuro caso seja necessário buscar por outros campos sem UUID conhecido.
+Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 
 ---
 
-### Fluxo 1b — Linte v2 → ClickUp (sync de status)
+### Fluxo 1b — Linte v2 → ClickUp
 
-**Trigger:** Webhook `WORKFLOW_EVENT` em `api/webhooks/linte-v2.ts`
+**Trigger:** `WORKFLOW_EVENT` em `api/webhooks/linte-v2.ts`
 
-**Identificação de demanda:** Variável com `label: "ID Linte"` (UUID `pP3Ds4ewFwjsWryHT`) dentro de `payload.variables`. O valor é o código legível (ex: `"ALN-254"`).
+1. Extrai `linteCode` de `payload.payload.variables` buscando `label === "ID Linte"` (UUID: `pP3Ds4ewFwjsWryHT`; valor ex: `"ALN-254"`)
+2. Mapeia status via `statusMappingV2.ts` — se não mapeado, ignora
+3. Busca e atualiza tarefa no ClickUp (mesmo campo "Código Linte" do v1)
 
-**Lógica:**
-1. Filtra apenas `type === "WORKFLOW_EVENT"` — ignora demais
-2. Extrai `linteCode` percorrendo `payload.payload.variables` em busca de `label === "ID Linte"`
-3. Se variável não encontrada: loga e ignora (demandas antigas sem o campo)
-4. Consulta `statusMappingV2.ts` — se status não mapeado, loga e ignora
-5. Busca tarefa no ClickUp pelo campo **"Código Linte"** (mesmo campo do v1)
-6. Atualiza status da tarefa
+**Mapeamentos v2:**
 
-**Mapeamento de status v2:**
-
-| Linte v2              | ClickUp                 |
-|-----------------------|-------------------------|
-| Em Assinatura         | ENVIADO PARA ASSINATURA |
-| Enviar Nota Fiscal    | CONTRATO ATIVO          |
-| demais                | ignorar (logar)         |
-
-**Sem `extractPaymentInfo`** — não há equivalente no fluxo v2.
+| Linte v2 | ClickUp |
+|---|---|
+| Em Assinatura | ENVIADO PARA ASSINATURA |
+| Enviar Nota Fiscal | CONTRATO ATIVO |
 
 ---
 
-### Fluxo 2 — ClickUp → Linte (pedido de pagamento)
+### Fluxo 2 — ClickUp → Linte (pagamento)
 
-**Trigger:** Webhook `taskCommentPosted` com texto **exato** `"pedido de pagamento enviado"` em `api/webhooks/clickup.ts`
+**Trigger:** Comentário exato `"pedido de pagamento enviado"` no ClickUp
 
-**Roteamento v1/v2:** O campo **"Código Linte"** da tarefa determina o fluxo:
-- `ALU-*` → Linte v1 (comportamento atual)
-- `ALN-*` → Linte v2
+**Roteamento por prefixo do "Código Linte":** `ALU-*` → v1 · `ALN-*` → v2
 
-**Lógica v1:**
-1. Recebe evento com ID da tarefa
-2. Busca tarefa no ClickUp para ler campo **"Tipo de prestador"**
-3. Comportamento por tipo:
-   - `RPA` / `INVOICE` → envia comentário simples na demanda Linte v1
-   - `PJ` → busca último PDF anexado na tarefa e envia comentário com URL na Linte v1
+**v1 — por tipo de prestador:**
+- `RPA` → comentário de liberação na Linte
+- `INVOICE` → comentário de geração de invoice na Linte
+- `PJ` → comentário + URL do último PDF anexado na tarefa
 
-**Lógica v2:**
-1. Busca o `instanceId` real via `findInstanceByLinteCode` (query `BuscarPorCustomId` na Linte v2)
-2. Chama `instanceUpdate` para mudar status para **"Pagamento Liberado"**
-3. Se PJ: identifica o PDF mais recente nos anexos do ClickUp e loga (upload para Linte v2 pendente — API sem mutation de upload)
-
-**Edge cases:**
-- Campo "Tipo de prestador" ausente ou valor não reconhecido → logar e não processar
-- Tarefa PJ sem anexo PDF → logar aviso
-- Comentário que não seja exatamente "pedido de pagamento enviado" → ignorar silenciosamente
-- v2: `instanceId` não encontrado na Linte v2 → logar erro, não processar
+**v2:**
+1. Busca `instanceId` via `findInstanceByLinteCode` (query `BuscarPorCustomId` usando o número do código — ⚠️ a confirmar em produção)
+2. Muda status para `"Pagamento Liberado"` via `instanceUpdate` (⚠️ nome ou ID — a confirmar)
+3. Se `PJ`: envia URL do PDF do ClickUp para Linte v2 via `instanceUpdate` com `variables: [{ id: "6cDKfsDqr5cGAJt8c", value: url }]` — a Linte baixa o arquivo. Requisito: path da URL deve terminar com `nome.ext`
 
 ---
 
-### Fluxo 3 — Cron job: relatório diário para o Teams
+### Fluxo 3 — Cron: relatório diário
 
-**Trigger:** Cron job da Vercel, todo dia às 08:00 BRT (configurado como `0 11 * * *` UTC em `vercel.json`)
+**Trigger:** `0 11 * * *` UTC (08h BRT) · `api/cron/daily-report.ts`
 
-**Endpoint:** `api/cron/daily-report.ts` — autenticado via header `Authorization: Bearer <CRON_SECRET>`
-
-**Lógica:**
-1. Consulta a tabela `automation_log` no Postgres buscando todos os registros do dia anterior (fuso horário de Brasília)
-2. Monta um Adaptive Card com resumo de eventos `info` e `error`
-3. Envia o card para o canal do Teams via `TEAMS_WEBHOOK_URL`
-
-**Comportamentos:**
-- Nenhum evento ontem → envia card com mensagem "Nenhuma movimentação ontem"
-- `TEAMS_WEBHOOK_URL` não configurada → retorna 200 com erro (não lança exceção)
+Busca logs do dia anterior no Postgres e envia Adaptive Card para `TEAMS_WEBHOOK_URL`.
 
 ---
 
 ## Serviços
 
-### `src/services/linte.ts`
-- Protocolo: **GraphQL**
-- Base URL: `https://api.linte.com/graphql`
-- Auth: header `key: <LINTE_API_KEY>`
+| Arquivo | Protocolo | Base URL | Auth |
+|---|---|---|---|
+| `linte.ts` | GraphQL | `https://api.linte.com/graphql` | `key: <LINTE_API_KEY>` |
+| `linte-v2.ts` | GraphQL | `https://docs-api.linte.com/graphql` | `Authorization: Bearer <LINTE_V2_TOKEN>` |
+| `clickup.ts` | REST | `https://api.clickup.com/api/v2` | `Authorization: <CLICKUP_API_TOKEN>` |
 
-**Queries confirmadas pelo schema (via introspection):**
-- Mensagens de uma requisição: `requisitionMessages(requisitionId: ID!, limit: Int!)` — retorna `{ content, createdAt, sender { name } }`. O campo é `content`, **não** `text`. Não existe `requisition { messages }` no schema.
-- O tipo `Requisition` **não** possui subcampo de mensagens — as mensagens são uma query separada na raiz.
+`logger.ts` — grava no console + tabela `automation_log` (Postgres). Silencia erros de banco.
 
-### `src/services/clickup.ts`
-- Protocolo: **REST**
-- Base URL: `https://api.clickup.com/api/v2`
-- Auth: header `Authorization: <CLICKUP_API_TOKEN>`
-
-### `src/services/logger.ts`
-- Exporta `logInfo` e `logError`
-- Cada chamada grava no console **e** insere uma linha na tabela `automation_log` do Postgres
-- Silencia erros de banco (não propaga exceção se o INSERT falhar)
-
-### `src/lib/db.ts`
-- Exporta `sql` (cliente Neon via `@neondatabase/serverless`) e `ensureSchema()`
-- `ensureSchema()` cria a tabela `automation_log` se não existir — deve ser chamada uma vez manualmente antes de usar o logger em produção
+`db.ts` — exporta `sql` (Neon) e `ensureSchema()`. Já executada em produção (2026-04-28).
 
 ---
 
@@ -180,139 +122,55 @@ Usa `findTaskByLinteCode` em `src/services/clickup.ts`, que filtra via query par
 
 ```
 # Linte v1 (manter enquanto contratos antigos existirem)
-LINTE_API_KEY=          # Chave de autenticação da API da Linte v1
+LINTE_API_KEY=
 
 # Linte v2
-LINTE_V2_TOKEN=         # JWT Bearer Token da nova API Linte v2 (obtido com TI)
-LINTE_V2_CATEGORY_ID=   # ID da categoria de contratos na Linte v2 (ex: c9a103edc6d45f96a1140413)
+LINTE_V2_TOKEN=        # ⚠️ Pendente configurar na Vercel (token já fornecido pelo TI)
+LINTE_V2_CATEGORY_ID=  # ✅ c9a103edc6d45f96a1140413
 
 # ClickUp
-CLICKUP_API_TOKEN=      # Token pessoal ou OAuth do ClickUp
-CLICKUP_LIST_ID=        # ID da lista onde as tarefas estão
+CLICKUP_API_TOKEN=
+CLICKUP_LIST_ID=
 
-# Banco e infra
-POSTGRES_URL=           # Connection string do Neon Postgres (ex: postgres://user:pass@host/db)
-TEAMS_WEBHOOK_URL=      # URL do webhook do canal do Teams para o relatório diário
-CRON_SECRET=            # Segredo injetado pela Vercel nos cron jobs (gerado automaticamente)
+# Infra
+POSTGRES_URL=
+TEAMS_WEBHOOK_URL=
+CRON_SECRET=
 ```
 
-> Em desenvolvimento local, criar `.env.local` na raiz. Nunca commitar esse arquivo.
-
-> **Schema do banco:** após configurar `POSTGRES_URL`, criar a tabela uma vez chamando `ensureSchema()` de `src/lib/db.ts`. O logger (`src/services/logger.ts`) não cria a tabela automaticamente — ela precisa existir antes.
-
----
-
-## Mapeamento de status (Linte → ClickUp)
-
-| Linte                        | ClickUp                  |
-|------------------------------|--------------------------|
-| DP \| Em Aberto              | EM ANÁLISE               |
-| DP \| Aguardando Assinatura  | ENVIADO PARA ASSINATURA  |
-| DP \| Ativo                  | CONTRATO ATIVO           |
-| Sob Análise do Jurídico      | AGUARDANDO PAGAMENTO     |
-| demais                       | ignorar (logar)          |
-
-Para **adicionar um novo mapeamento**, editar apenas `src/config/statusMapping.ts` — nenhuma outra alteração é necessária.
+> Em desenvolvimento local, usar `.env.local`. Nunca commitar.
 
 ---
 
 ## Convenções
 
-- Todos os webhooks retornam **HTTP 200** mesmo em erros inesperados (`{ ok: false, error: "..." }`). Retornar 500 acionaria a política de retry do ClickUp/Linte, causando reprocessamento duplicado (ex: comentário enviado duas vezes na Linte). 4xx/5xx apenas para falhas de infraestrutura fora do controle da função.
-- Logs devem incluir contexto: ID da tarefa, código Linte, status recebido.
-- Não lançar exceções não tratadas nos handlers — capturar e logar.
-- TypeScript strict mode ativo; evitar `any`.
-
-### Código removido intencionalmente
-
-- **`sendMessageWithFile` (`src/services/linte.ts`)** — removida por ser código morto. O schema da mutation `sendRequisitionMessageWithFiles` nunca foi confirmado e a função nunca foi chamada. O fluxo PJ envia a URL da NF colada no texto via `sendMessage`, o que é suficiente. Se futuramente for necessário enviar arquivo como anexo dentro da Linte, implementar do zero com o schema confirmado.
+- Webhooks sempre retornam **HTTP 200**, mesmo em erro (`{ ok: false }`). 4xx/5xx causaria retry e duplicação.
+- Logs incluem contexto: `linteCode`, `taskId`, `taskName`.
+- Não propagar exceções nos handlers — capturar e logar.
+- TypeScript strict mode; evitar `any`.
 
 ---
 
-## Segurança dos Webhooks
+## Migração Linte v2
 
-- Validar que requisições chegam dos IPs/origens esperados, se a Linte ou ClickUp fornecerem assinatura de payload.
-- Não logar valores de campos sensíveis (ex: URLs de NF, dados de contratos).
+**Status (2026-04-28):** v1 e v2 rodando em paralelo. v2 implementada, aguardando token e webhook cadastrado.
 
----
+### Pendências com TI
 
-## Migração para Nova API Linte
+- [ ] Configurar `LINTE_V2_TOKEN` na Vercel
+- [ ] Cadastrar webhook `WORKFLOW_EVENT` → `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2`
+- [ ] Confirmar se `instance(filter: { custom: { categoryId, id: "254" } })` retorna instância correta para `ALN-254`
+- [ ] Confirmar se `instanceUpdate` aceita nome do status (`"Pagamento Liberado"`) ou exige o ID
 
-> **Status (2026-04-28):** Integração v2 implementada e rodando em paralelo com a v1. Os dois fluxos coexistem — v1 para códigos `ALU-*`, v2 para códigos `ALN-*`.
+### Desligar a Linte v1
 
-### Comparativo v1 vs v2
+Quando o TI confirmar que **nenhum contrato ativo** usa a Linte v1:
 
-| | Linte v1 (produção) | Linte v2 (paralelo) |
-|---|---|---|
-| Endpoint GraphQL | `https://api.linte.com/graphql` | `https://docs-api.linte.com/graphql` |
-| Autenticação | Header `key: <LINTE_API_KEY>` | Header `Authorization: Bearer <LINTE_V2_TOKEN>` |
-| Webhook endpoint | `api/webhooks/linte.ts` | `api/webhooks/linte-v2.ts` |
-| Tipo de evento | `REQUISITION_STATUS_WAS_UPDATED_WEBHOOK` | `WORKFLOW_EVENT` |
-| ID da demanda | `payload.requisition.id` (ex: `ALU-HSCAMS`) | variável `label: "ID Linte"` em `payload.payload.variables` (UUID: `pP3Ds4ewFwjsWryHT`) |
-| Status no payload | String legível (ex: `"Sob Análise do Jurídico"`) | Objeto `{ id, name }` — `name` já é legível |
-| Busca de arquivos | Anexos via API do ClickUp | `instanceFiles(instanceId)` — URL expira em 10 min |
-| Mutation de status | não se aplica | `instanceUpdate(id, { status: "Nome do Status" })` |
-| Upload de arquivo | `sendMessage` com URL | **Não documentado** — pendente com TI |
-
-### Payload real do webhook `WORKFLOW_EVENT` com variável "ID Linte" (confirmado em 2026-04-28)
-
-```json
-{
-  "_id": "dvsAkRnvj8kdPTJqe",
-  "webhookId": "PgAqRJXDkMAA3rpBk",
-  "type": "WORKFLOW_EVENT",
-  "categoryId": "c9a103edc6d45f96a1140413",
-  "companyId": "qMBnvX6oswxmPhNJf",
-  "instanceId": "6B5DZWH7Z8TGaxAKn",
-  "payload": {
-    "instanceId": "6B5DZWH7Z8TGaxAKn",
-    "categoryId": "c9a103edc6d45f96a1140413",
-    "variables": {
-      "pP3Ds4ewFwjsWryHT": {
-        "label": "ID Linte",
-        "type": "text",
-        "value": "ALN-254"
-      }
-    },
-    "status": {
-      "id": "yNqSMByPtvGSRYr8k",
-      "name": "Enviar Nota Fiscal"
-    }
-  },
-  "timestamp": 1777384707018,
-  "createdAt": "2026-04-28T13:58:27.018Z"
-}
-```
-
-### Detalhes técnicos da v2
-
-**Busca de instanceId pelo código legível:**
-`findInstanceByLinteCode("ALN-254")` extrai `"254"` e faz:
-```graphql
-instance(filter: { custom: { categoryId: LINTE_V2_CATEGORY_ID, id: "254" } }) { id }
-```
-⚠️ Assumimos que `custom.id` aceita o número do `identifier` — verificar em produção.
-
-**Mudança de status:**
-```graphql
-instanceUpdate(id: $instanceId, input: { status: "Pagamento Liberado" })
-```
-⚠️ Assumimos que a API aceita o nome do status — verificar se exige o ID.
-
-### O que ainda precisa ser confirmado com o TI da Linte
-
-- [ ] `LINTE_V2_TOKEN` — como obter o JWT, validade e se há refresh
-- [ ] Confirmar se `instance(filter: { custom: { categoryId, id: "254" } })` retorna a instância correta para `ALN-254`
-- [ ] Confirmar se `instanceUpdate` aceita nome do status ou exige ID
-- [ ] Existe mutation de upload de arquivo? (necessária para o fluxo PJ — anexar NF na Linte v2)
-- [ ] Cadastrar webhook `WORKFLOW_EVENT` apontando para `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2`
-
-### Quando desligar a Linte v1
-
-Quando o TI confirmar que todos os contratos estão na v2:
-- Remover `api/webhooks/linte.ts`, `src/services/linte.ts`, `src/handlers/linteStatusUpdate.ts`, `src/config/statusMapping.ts`
-- Remover a variável `LINTE_API_KEY`
-- Renomear arquivos `*v2*` retirando o sufixo
+1. Remover arquivos: `api/webhooks/linte.ts`, `src/services/linte.ts`, `src/handlers/linteStatusUpdate.ts`, `src/config/statusMapping.ts`
+2. Remover `LINTE_API_KEY` da Vercel
+3. Renomear: `linte-v2.ts` → `linte.ts`, `linteV2StatusUpdate.ts` → `linteStatusUpdate.ts`, `statusMappingV2.ts` → `statusMapping.ts`
+4. Atualizar os imports nos handlers e no webhook (`api/webhooks/linte-v2.ts` → `api/webhooks/linte.ts`)
+5. Remover lógica de roteamento por prefixo `ALN-`/`ALU-` em `clickupPaymentRequest.ts`
 
 ---
 
@@ -320,9 +178,12 @@ Quando o TI confirmar que todos os contratos estão na v2:
 
 | Sintoma | Causa provável | Verificação |
 |---|---|---|
-| Tarefa não encontrada | Campo "Código Linte" vazio ou formato diferente | Confirmar valor exato no ClickUp (ex: `ALU-HSCAMS`) |
-| Status não atualiza | Status da Linte não está no mapeamento | Checar log — deve aparecer como "ignorado" |
-| Comentário não enviado (PJ) | Sem anexo na tarefa | Confirmar que NF foi anexada antes do comentário |
-| Webhook não dispara | URL de webhook errada no painel | Confirmar URL no painel da Linte e do ClickUp |
-| Previsão de pagamento não atualiza | Mensagem do DP não encontrada | Ver log — exibe todos os textos encontrados; verificar se contém keyword de pagamento + data dd/mm |
-| Erro "Linte API HTTP 400" ao buscar mensagens | Query errada (campo `messages` não existe no schema) | Usar `requisitionMessages(requisitionId, limit)` com campo `content` |
+| Tarefa não encontrada | "Código Linte" vazio ou formato errado | Confirmar valor exato no ClickUp |
+| Status não atualiza (v1) | Status não mapeado | Log deve mostrar "ignorando" |
+| Comentário não enviado — PJ v1 | Sem PDF anexado | Confirmar NF anexada antes do comentário |
+| Previsão de pagamento não atualiza | Mensagem do DP não encontrada | Log exibe textos encontrados — verificar keyword + data `dd/mm` |
+| v2: webhook não chega | URL errada ou webhook não cadastrado na Linte | Confirmar cadastro com TI |
+| v2: status não atualiza no ClickUp | "ID Linte" ausente no payload ou status não mapeado | Log: "Variável não encontrada" ou "sem mapeamento" |
+| v2: "Pagamento Liberado" não muda | `LINTE_V2_TOKEN` não configurado ou expirado | Verificar variável na Vercel |
+| v2: `instanceId` não encontrado | `LINTE_V2_CATEGORY_ID` errado ou query não funciona | Confirmar com TI a query correta |
+| v2: NF não aparece na Linte — PJ | URL do ClickUp não pública ou sem `.pdf` no path | Verificar se URL do anexo é acessível sem autenticação |

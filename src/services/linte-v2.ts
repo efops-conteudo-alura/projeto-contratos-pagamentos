@@ -59,9 +59,25 @@ export async function updateInstanceStatus(instanceId: string, statusName: strin
   );
 }
 
-// TODO: implementar quando o TI fornecer a mutation de upload de arquivo.
-// export async function uploadFileToInstance(
-//   instanceId: string,
-//   fileBuffer: Buffer,
-//   filename: string
-// ): Promise<void>
+// vrId fixo do campo "Nota Fiscal" na categoria de contratos (fornecido pelo TI da Linte).
+const NF_VAR_REGISTER_ID = "6cDKfsDqr5cGAJt8c";
+
+// Anexa um arquivo à pasta da Linte v2 passando a URL pública do arquivo.
+// A API baixa o arquivo a partir da URL — não aceita binário nem base64.
+// Requisito da Linte: o path da URL deve terminar com nome.extensao (ex: .../contrato.pdf).
+export async function attachFileToInstance(instanceId: string, fileUrl: string): Promise<void> {
+  await gql(
+    `mutation AnexarArquivo($id: String!, $input: InstanceUpdateInput!) {
+      instanceUpdate(id: $id, input: $input) {
+        id
+        variables { id value }
+      }
+    }`,
+    {
+      id: instanceId,
+      input: {
+        variables: [{ id: NF_VAR_REGISTER_ID, value: fileUrl }],
+      },
+    }
+  );
+}
