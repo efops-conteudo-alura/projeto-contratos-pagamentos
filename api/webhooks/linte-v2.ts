@@ -34,14 +34,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const linteCodeEntry = Object.values(variables).find((v) => v.label === "ID Linte");
   const linteCode = linteCodeEntry?.value ?? null;
   const statusName = body.payload?.status?.name ?? null;
+  const instanceId = body.instanceId ?? body.payload?.instanceId ?? null;
 
   if (!linteCode) {
     console.log("[linte-v2 webhook] Variável 'ID Linte' não encontrada no payload — ignorando");
     return res.status(200).json({ ignored: true, reason: "no linteCode" });
   }
 
+  if (!instanceId) {
+    console.log("[linte-v2 webhook] instanceId ausente no payload — ignorando");
+    return res.status(200).json({ ignored: true, reason: "no instanceId" });
+  }
+
   try {
-    await handleLinteV2StatusUpdate({ linteCode, statusName: statusName ?? "" });
+    await handleLinteV2StatusUpdate({ linteCode, statusName: statusName ?? "", instanceId });
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[linte-v2 webhook] erro:", err);

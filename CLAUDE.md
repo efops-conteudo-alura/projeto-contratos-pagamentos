@@ -66,8 +66,9 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 **Trigger:** `WORKFLOW_EVENT` em `api/webhooks/linte-v2.ts`
 
 1. Extrai `linteCode` de `payload.payload.variables` buscando `label === "ID Linte"` (UUID: `pP3Ds4ewFwjsWryHT`; valor ex: `"ALN-254"`)
-2. Mapeia status via `statusMappingV2.ts` — se não mapeado, ignora
-3. Busca e atualiza tarefa no ClickUp (mesmo campo "Código Linte" do v1)
+2. Extrai `instanceId` de `body.instanceId` (ou `body.payload.instanceId`)
+3. Mapeia status via `statusMappingV2.ts` — se não mapeado, ignora
+4. Busca tarefa no ClickUp pelo "Código Linte", atualiza status, e grava `instanceId` no campo custom **"Linte Instance ID"** (usado pelo Fluxo 2)
 
 **Mapeamentos v2:**
 
@@ -89,10 +90,13 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 - `INVOICE` → comentário de geração de invoice na Linte
 - `PJ` → comentário + URL do último PDF anexado na tarefa
 
-**v2:**
-1. Busca `instanceId` via `findInstanceByLinteCode` (query `BuscarPorCustomId` usando o número do código — ⚠️ a confirmar em produção)
-2. Muda status para `"Pagamento Liberado"` via `instanceUpdate` (⚠️ nome ou ID — a confirmar)
-3. Se `PJ`: envia URL do PDF do ClickUp para Linte v2 via `instanceUpdate` com `variables: [{ id: "6cDKfsDqr5cGAJt8c", value: url }]` — a Linte baixa o arquivo. Requisito: path da URL deve terminar com `nome.ext`
+**v2 (3 chamadas em sequência, conforme orientação do TI da Linte):**
+1. Lê `instanceId` do campo custom **"Linte Instance ID"** da tarefa do ClickUp (gravado pelo Fluxo 1b). Se vazio, aborta — provavelmente o webhook v2 ainda não chegou.
+2. **Query** `instance(filter: { id: instanceId })` para descobrir o `stepRegisterId` aberto cujo `initialStatus.id === STATUS_ENVIAR_NOTA_FISCAL_ID` (`yNqSMByPtvGSRYr8k`).
+3. Se `PJ`: chama `instanceUpdate` com `variables: [{ id: "6cDKfsDqr5cGAJt8c", value: <URL do PDF> }]` para anexar a NF (a Linte baixa pela URL — path deve terminar com `nome.ext`).
+4. Chama `completeStep(id: stepRegisterId)` — o status da pasta avança automaticamente para "Pagamento Liberado".
+
+> ⚠️ Pendente do TI: `vrId` da ramificação **"Nota fiscal enviada?"** e formato do valor "Sim". Quando chegar, incluir em `variables` no passo 3 (`updateInstanceVariables` em `src/services/linte-v2.ts`).
 
 ---
 
@@ -126,7 +130,7 @@ LINTE_API_KEY=
 
 # Linte v2
 LINTE_V2_TOKEN=        # ⚠️ Pendente configurar na Vercel (token já fornecido pelo TI)
-LINTE_V2_CATEGORY_ID=  # ✅ c9a103edc6d45f96a1140413
+# (LINTE_V2_CATEGORY_ID não é mais necessária — instanceId vem direto do webhook)
 
 # ClickUp
 CLICKUP_API_TOKEN=
@@ -153,14 +157,14 @@ CRON_SECRET=
 
 ## Migração Linte v2
 
-**Status (2026-04-28):** v1 e v2 rodando em paralelo. v2 implementada, aguardando token e webhook cadastrado.
+**Status (2026-05-07):** v1 e v2 rodando em paralelo. v2 reescrita conforme orientação do TI: usa `instanceId` do webhook + query `stepRegister` + `completeStep`.
 
 ### Pendências com TI
 
 - [ ] Configurar `LINTE_V2_TOKEN` na Vercel
 - [ ] Cadastrar webhook `WORKFLOW_EVENT` → `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2`
-- [ ] Confirmar se `instance(filter: { custom: { categoryId, id: "254" } })` retorna instância correta para `ALN-254`
-- [ ] Confirmar se `instanceUpdate` aceita nome do status (`"Pagamento Liberado"`) ou exige o ID
+- [ ] Receber `vrId` da ramificação **"Nota fiscal enviada?"** e formato do valor "Sim" (TODO no `clickupPaymentRequest.ts`)
+- [ ] Vasco: criar campo de texto **"Linte Instance ID"** na lista do ClickUp (gravado pelo Fluxo 1b, lido pelo Fluxo 2)
 
 ### Desligar a Linte v1
 
@@ -185,5 +189,6 @@ Quando o TI confirmar que **nenhum contrato ativo** usa a Linte v1:
 | v2: webhook não chega | URL errada ou webhook não cadastrado na Linte | Confirmar cadastro com TI |
 | v2: status não atualiza no ClickUp | "ID Linte" ausente no payload ou status não mapeado | Log: "Variável não encontrada" ou "sem mapeamento" |
 | v2: "Pagamento Liberado" não muda | `LINTE_V2_TOKEN` não configurado ou expirado | Verificar variável na Vercel |
-| v2: `instanceId` não encontrado | `LINTE_V2_CATEGORY_ID` errado ou query não funciona | Confirmar com TI a query correta |
+| v2: tarefa sem "Linte Instance ID" | Campo custom não criado, ou webhook 1b ainda não chegou para essa pasta | Log: "Tarefa sem 'Linte Instance ID'" — criar campo no ClickUp e/ou aguardar webhook |
+| v2: stepRegister aberto não encontrado | Status atual da pasta não é "Enviar Nota Fiscal" (ID `yNqSMByPtvGSRYr8k` mudou?) | Confirmar status da pasta na Linte; se ID do status mudou, atualizar `STATUS_ENVIAR_NOTA_FISCAL_ID` em `linte-v2.ts` |
 | v2: NF não aparece na Linte — PJ | URL do ClickUp não pública ou sem `.pdf` no path | Verificar se URL do anexo é acessível sem autenticação |

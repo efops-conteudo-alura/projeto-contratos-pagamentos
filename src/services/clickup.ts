@@ -114,6 +114,22 @@ export async function setTaskDateField(taskId: string, fieldName: string, timest
   }
 }
 
+export async function setTaskTextField(taskId: string, fieldName: string, value: string): Promise<void> {
+  const fieldId = await getListCustomFieldId(fieldName);
+  if (!fieldId) {
+    throw new Error(`Campo "${fieldName}" não encontrado na lista`);
+  }
+  const res = await fetch(`${BASE}/task/${taskId}/field/${fieldId}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`ClickUp setTaskTextField falhou (${res.status}): ${body}`);
+  }
+}
+
 export async function addTaskComment(taskId: string, text: string): Promise<void> {
   const res = await fetch(`${BASE}/task/${taskId}/comment`, {
     method: "POST",

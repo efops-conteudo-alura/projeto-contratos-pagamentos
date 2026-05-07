@@ -1,7 +1,6 @@
 import fetch from "node-fetch";
 
 const ENDPOINT = "https://docs-api.linte.com/graphql";
-const CATEGORY_ID = process.env.LINTE_V2_CATEGORY_ID!;
 
 function getHeaders() {
   return {
@@ -26,58 +25,78 @@ async function gql(query: string, variables: Record<string, unknown>): Promise<u
   return data.data;
 }
 
-// Busca o instanceId real a partir do código legível (ex: "ALN-254" → busca identifier "254").
-// Usa o filtro custom { categoryId, id } da API Linte v2.
-// ⚠️ Assumimos que custom.id aceita o número do identifier — verificar em produção.
-export async function findInstanceByLinteCode(linteCode: string): Promise<string | null> {
-  const customId = linteCode.split("-")[1];
-  if (!customId) return null;
+// vrId fixo do campo de arquivo "Nota Fiscal" (fornecido pelo TI da Linte).
+export const NF_VAR_REGISTER_ID = "6cDKfsDqr5cGAJt8c";
 
+// ID do status "Enviar Nota Fiscal" no fluxo Linte v2 (fornecido pelo TI: yNqSMByPtvGSRYr8k).
+// Usado para localizar o stepRegister aberto que precisa ser concluído quando o pagamento é solicitado via ClickUp.
+export const STATUS_ENVIAR_NOTA_FISCAL_ID = "yNqSMByPtvGSRYr8k";
+
+// TODO: vrId da ramificação "Nota fiscal enviada?" — pendente do TI da Linte.
+// Quando chegar, preencher e ajustar updateInstanceVariables/handlePaymentV2 para enviar { id, value: "Sim" }.
+
+interface FlowRegister {
+  id: string;
+  stepsRegisters: {
+    id: string;
+    completed: boolean;
+    initialStatus?: { id: string; name: string } | null;
+  }[];
+}
+
+// Descobre o id do stepRegister aberto cujo initialStatus bate com o status atual da pasta.
+// É esse id que entra em completeStep(id: ...) para avançar o fluxo na Linte v2.
+export async function findOpenStepRegisterId(instanceId: string, statusId: string): Promise<string | null> {
   const data = await gql(
-    `query FindInstance($categoryId: String!, $customId: String!) {
-      instance(filter: { custom: { categoryId: $categoryId, id: $customId } }) {
+    `query BuscarStepRegister($instanceId: String!) {
+      instance(filter: { id: $instanceId }) {
         id
+        flowRegisters {
+          id
+          stepsRegisters {
+            id
+            completed
+            initialStatus { id name }
+          }
+        }
       }
     }`,
-    { categoryId: CATEGORY_ID, customId }
-  ) as { instance: { id: string } | null };
+    { instanceId }
+  ) as { instance: { id: string; flowRegisters: FlowRegister[] } | null };
 
-  return data?.instance?.id ?? null;
+  const flowRegisters = data?.instance?.flowRegisters ?? [];
+  const openStep = flowRegisters
+    .flatMap((fr) => fr.stepsRegisters)
+    .find((sr) => !sr.completed && sr.initialStatus?.id === statusId);
+  return openStep?.id ?? null;
 }
 
-// Muda o status da instância usando o nome do status.
-// ⚠️ Se a API exigir o ID em vez do nome, substituir statusName pelo ID correspondente.
-export async function updateInstanceStatus(instanceId: string, statusName: string): Promise<void> {
+// Atualiza variáveis da pasta — usado para anexar a NF (PJ) e, futuramente, a ramificação "Nota fiscal enviada?".
+// A Linte baixa o arquivo a partir da URL pública. Requisito: path da URL deve terminar com nome.extensao.
+export async function updateInstanceVariables(
+  instanceId: string,
+  variables: { id: string; value: string }[]
+): Promise<void> {
+  if (variables.length === 0) return;
   await gql(
-    `mutation UpdateStatus($id: String!, $input: InstanceUpdateInput!) {
-      instanceUpdate(id: $id, input: $input) {
-        id
-        status
-      }
-    }`,
-    { id: instanceId, input: { status: statusName } }
-  );
-}
-
-// vrId fixo do campo "Nota Fiscal" na categoria de contratos (fornecido pelo TI da Linte).
-const NF_VAR_REGISTER_ID = "6cDKfsDqr5cGAJt8c";
-
-// Anexa um arquivo à pasta da Linte v2 passando a URL pública do arquivo.
-// A API baixa o arquivo a partir da URL — não aceita binário nem base64.
-// Requisito da Linte: o path da URL deve terminar com nome.extensao (ex: .../contrato.pdf).
-export async function attachFileToInstance(instanceId: string, fileUrl: string): Promise<void> {
-  await gql(
-    `mutation AnexarArquivo($id: String!, $input: InstanceUpdateInput!) {
+    `mutation AtualizarVariaveis($id: String!, $input: InstanceUpdateInput!) {
       instanceUpdate(id: $id, input: $input) {
         id
         variables { id value }
       }
     }`,
-    {
-      id: instanceId,
-      input: {
-        variables: [{ id: NF_VAR_REGISTER_ID, value: fileUrl }],
-      },
-    }
+    { id: instanceId, input: { variables } }
+  );
+}
+
+// Conclui o passo aberto na Linte v2, fazendo o status avançar (ex.: "Enviar Nota Fiscal" → "Pagamento Liberado").
+export async function completeStep(stepRegisterId: string): Promise<void> {
+  await gql(
+    `mutation ConcluirPasso($id: String!) {
+      completeStep(id: $id) {
+        id
+      }
+    }`,
+    { id: stepRegisterId }
   );
 }

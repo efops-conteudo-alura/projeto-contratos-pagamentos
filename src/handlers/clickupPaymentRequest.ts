@@ -1,6 +1,12 @@
 import { getTask, getDropdownValue, type ClickUpTask } from "../services/clickup";
 import { sendMessage } from "../services/linte";
-import { findInstanceByLinteCode, updateInstanceStatus, attachFileToInstance } from "../services/linte-v2";
+import {
+  findOpenStepRegisterId,
+  updateInstanceVariables,
+  completeStep,
+  NF_VAR_REGISTER_ID,
+  STATUS_ENVIAR_NOTA_FISCAL_ID,
+} from "../services/linte-v2";
 import { logInfo, logError } from "../services/logger";
 
 interface ClickUpCommentPayload {
@@ -78,9 +84,10 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 }
 
 async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: string): Promise<void> {
-  const instanceId = await findInstanceByLinteCode(linteCode);
+  const instanceIdField = task.custom_fields.find((f) => f.name === "Linte Instance ID");
+  const instanceId = typeof instanceIdField?.value === "string" ? instanceIdField.value.trim() : "";
   if (!instanceId) {
-    await logError("clickup→linte-v2", `Instância Linte v2 não encontrada para código "${linteCode}"`, {
+    await logError("clickup→linte-v2", `Tarefa sem "Linte Instance ID" — webhook v2 anterior não chegou ou campo não foi gravado`, {
       linteCode,
       taskId: task.id,
       taskName: task.name,
@@ -88,8 +95,20 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
     return;
   }
 
-  await updateInstanceStatus(instanceId, "Pagamento Liberado");
+  // 1) Descobre o stepRegister aberto cujo initialStatus bate com "Enviar Nota Fiscal".
+  const stepRegisterId = await findOpenStepRegisterId(instanceId, STATUS_ENVIAR_NOTA_FISCAL_ID);
+  if (!stepRegisterId) {
+    await logError("clickup→linte-v2", `stepRegister aberto não encontrado para instanceId=${instanceId} — verifique se o status atual é "Enviar Nota Fiscal"`, {
+      linteCode,
+      taskId: task.id,
+      taskName: task.name,
+    });
+    return;
+  }
 
+  // 2) Preenche variáveis da pasta. Para PJ, anexa a NF; para os demais tipos, segue só com completeStep.
+  // TODO: quando o TI enviar o vrId da ramificação "Nota fiscal enviada?", incluir aqui o valor "Sim".
+  const variables: { id: string; value: string }[] = [];
   if (tipo === "PJ") {
     const attachments = task.attachments ?? [];
     const pdfAttachments = attachments
@@ -97,22 +116,25 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
       .sort((a, b) => Number(b.date_created ?? 0) - Number(a.date_created ?? 0));
     const lastPdf = pdfAttachments[0];
     if (lastPdf) {
-      await attachFileToInstance(instanceId, lastPdf.url);
-      await logInfo("clickup→linte-v2", `PJ: NF anexada na Linte v2 (${lastPdf.title})`, {
-        linteCode,
-        taskId: task.id,
-        taskName: task.name,
-      });
+      variables.push({ id: NF_VAR_REGISTER_ID, value: lastPdf.url });
     } else {
-      await logError("clickup→linte-v2", `PJ: sem PDF nos anexos da tarefa`, {
+      await logError("clickup→linte-v2", `PJ: sem PDF nos anexos da tarefa — abortando para evitar concluir o passo sem NF`, {
         linteCode,
         taskId: task.id,
         taskName: task.name,
       });
+      return;
     }
   }
 
-  await logInfo("clickup→linte-v2", `Pagamento liberado na Linte v2 (${tipo})`, {
+  if (variables.length > 0) {
+    await updateInstanceVariables(instanceId, variables);
+  }
+
+  // 3) Conclui o passo na Linte v2 — o status da pasta avança automaticamente.
+  await completeStep(stepRegisterId);
+
+  await logInfo("clickup→linte-v2", `Passo concluído na Linte v2 (${tipo}) — instanceId=${instanceId}`, {
     linteCode,
     taskId: task.id,
     taskName: task.name,
