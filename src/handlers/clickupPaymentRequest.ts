@@ -5,6 +5,7 @@ import {
   updateInstanceVariables,
   completeStep,
   NF_VAR_REGISTER_ID,
+  NF_ENVIADA_VAR_REGISTER_ID,
   STATUS_ENVIAR_NOTA_FISCAL_ID,
 } from "../services/linte-v2";
 import { logInfo, logError } from "../services/logger";
@@ -106,9 +107,12 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
     return;
   }
 
-  // 2) Preenche variáveis da pasta. Para PJ, anexa a NF; para os demais tipos, segue só com completeStep.
-  // TODO: quando o TI enviar o vrId da ramificação "Nota fiscal enviada?", incluir aqui o valor "Sim".
-  const variables: { id: string; value: string }[] = [];
+  // 2) Preenche variáveis da pasta antes de concluir o passo. O TI da Linte reforçou que algumas
+  // automações de workflow decidem o caminho seguinte pelos valores preenchidos — então a
+  // ramificação "Nota fiscal enviada?" precisa ir como "Sim" sempre, e para PJ anexamos a NF junto.
+  const variables: { id: string; value: string }[] = [
+    { id: NF_ENVIADA_VAR_REGISTER_ID, value: "Sim" },
+  ];
   if (tipo === "PJ") {
     const attachments = task.attachments ?? [];
     const pdfAttachments = attachments
@@ -127,9 +131,7 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
     }
   }
 
-  if (variables.length > 0) {
-    await updateInstanceVariables(instanceId, variables);
-  }
+  await updateInstanceVariables(instanceId, variables);
 
   // 3) Conclui o passo na Linte v2 — o status da pasta avança automaticamente.
   await completeStep(stepRegisterId);

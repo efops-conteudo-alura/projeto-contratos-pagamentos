@@ -93,10 +93,10 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 **v2 (3 chamadas em sequência, conforme orientação do TI da Linte):**
 1. Lê `instanceId` do campo custom **"Linte Instance ID"** da tarefa do ClickUp (gravado pelo Fluxo 1b). Se vazio, aborta — provavelmente o webhook v2 ainda não chegou.
 2. **Query** `instance(filter: { id: instanceId })` para descobrir o `stepRegisterId` aberto cujo `initialStatus.id === STATUS_ENVIAR_NOTA_FISCAL_ID` (`yNqSMByPtvGSRYr8k`).
-3. Se `PJ`: chama `instanceUpdate` com `variables: [{ id: "6cDKfsDqr5cGAJt8c", value: <URL do PDF> }]` para anexar a NF (a Linte baixa pela URL — path deve terminar com `nome.ext`).
+3. Chama `instanceUpdate` preenchendo a ramificação **"Nota fiscal enviada?"** com `"Sim"` (vrId `a03ea467-3251-4d88-8697-6555d379f04d`). Se `PJ`, adiciona também a NF (vrId `6cDKfsDqr5cGAJt8c`, valor = URL pública do PDF — path deve terminar com `nome.ext`).
 4. Chama `completeStep(id: stepRegisterId)` — o status da pasta avança automaticamente para "Pagamento Liberado".
 
-> ⚠️ Pendente do TI: `vrId` da ramificação **"Nota fiscal enviada?"** e formato do valor "Sim". Quando chegar, incluir em `variables` no passo 3 (`updateInstanceVariables` em `src/services/linte-v2.ts`).
+> ⚠️ A ramificação **precisa** ir preenchida antes do `completeStep` mesmo para RPA/INVOICE: algumas automações de workflow da Linte decidem o caminho seguinte pelos valores das variáveis. Tecnicamente o `completeStep` aceita ser chamado sem preencher, mas o fluxo pode não seguir como esperado.
 
 ---
 
@@ -161,10 +161,12 @@ CRON_SECRET=
 
 ### Pendências com TI
 
-- [ ] Configurar `LINTE_V2_TOKEN` na Vercel
-- [ ] Cadastrar webhook `WORKFLOW_EVENT` → `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2`
-- [ ] Receber `vrId` da ramificação **"Nota fiscal enviada?"** e formato do valor "Sim" (TODO no `clickupPaymentRequest.ts`)
-- [ ] Vasco: criar campo de texto **"Linte Instance ID"** na lista do ClickUp (gravado pelo Fluxo 1b, lido pelo Fluxo 2)
+- [x] Webhook `WORKFLOW_EVENT` cadastrado em `https://projeto-contratos-pagamentos.vercel.app/api/webhooks/linte-v2` (confirmado pelo TI em 2026-05-13)
+- [x] `vrId` da ramificação **"Nota fiscal enviada?"** = `a03ea467-3251-4d88-8697-6555d379f04d`, valor literal `"Sim"` (recebido em 2026-05-13, já no código)
+- [x] Token da API v2 confirmado como ativo (recebido em 2026-05-13)
+- [x] Vasco: campo de texto **"Linte Instance ID"** criado na lista do ClickUp (em 2026-05-13)
+- [ ] Vasco: cadastrar `LINTE_V2_TOKEN` na Vercel (token já recebido e confirmado pelo TI)
+- [ ] Teste end-to-end: pedir ao TI o ID de uma pasta com o passo "Enviar Nota Fiscal" em aberto para disparar o webhook manualmente
 
 ### Desligar a Linte v1
 

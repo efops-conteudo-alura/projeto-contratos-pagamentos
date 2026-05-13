@@ -28,12 +28,13 @@ async function gql(query: string, variables: Record<string, unknown>): Promise<u
 // vrId fixo do campo de arquivo "Nota Fiscal" (fornecido pelo TI da Linte).
 export const NF_VAR_REGISTER_ID = "6cDKfsDqr5cGAJt8c";
 
+// vrId da ramificação "Nota fiscal enviada?" — algumas automações do workflow usam esse valor
+// para decidir o caminho seguinte, então precisa ir preenchido junto com a NF antes do completeStep.
+export const NF_ENVIADA_VAR_REGISTER_ID = "a03ea467-3251-4d88-8697-6555d379f04d";
+
 // ID do status "Enviar Nota Fiscal" no fluxo Linte v2 (fornecido pelo TI: yNqSMByPtvGSRYr8k).
 // Usado para localizar o stepRegister aberto que precisa ser concluído quando o pagamento é solicitado via ClickUp.
 export const STATUS_ENVIAR_NOTA_FISCAL_ID = "yNqSMByPtvGSRYr8k";
-
-// TODO: vrId da ramificação "Nota fiscal enviada?" — pendente do TI da Linte.
-// Quando chegar, preencher e ajustar updateInstanceVariables/handlePaymentV2 para enviar { id, value: "Sim" }.
 
 interface FlowRegister {
   id: string;
@@ -71,7 +72,7 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
   return openStep?.id ?? null;
 }
 
-// Atualiza variáveis da pasta — usado para anexar a NF (PJ) e, futuramente, a ramificação "Nota fiscal enviada?".
+// Atualiza variáveis da pasta — usado para preencher a ramificação "Nota fiscal enviada?" e anexar a NF (PJ).
 // A Linte baixa o arquivo a partir da URL pública. Requisito: path da URL deve terminar com nome.extensao.
 export async function updateInstanceVariables(
   instanceId: string,
