@@ -7,8 +7,21 @@ interface LogRow {
   linte_code: string | null;
   task_id: string | null;
   task_name: string | null;
+  instance_id: string | null;
   message: string;
   created_at: string;
+}
+
+// Linte v2: o trecho /c/<id> é fixo para todas as demandas da Alura; só o instanceId varia.
+const LINTE_V2_INSTANCE_BASE_URL = "https://app.linte.co/c/c9a103edc6d45f96a1140413/i";
+
+function buildLinteUrl(row: LogRow): string | null {
+  if (!row.linte_code) return null;
+  if (row.linte_code.startsWith("ALN-")) {
+    // Linte v2 não tem página por código — o link só existe se o instanceId foi logado.
+    return row.instance_id ? `${LINTE_V2_INSTANCE_BASE_URL}/${row.instance_id}` : null;
+  }
+  return `https://alura.linte.com/requests/${row.linte_code}`;
 }
 
 function formatTime(isoString: string): string {
@@ -33,7 +46,7 @@ function flowLabel(flow: string): string {
 }
 
 function buildLogBlocks(row: LogRow): object[] {
-  const linteUrl = row.linte_code ? `https://alura.linte.com/requests/${row.linte_code}` : null;
+  const linteUrl = buildLinteUrl(row);
   const clickupUrl = row.task_id ? `https://app.clickup.com/t/${row.task_id}` : null;
 
   const codePrefix = linteUrl
@@ -222,7 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let rows: LogRow[];
   try {
     const result = await sql`
-      SELECT level, flow, linte_code, task_id, task_name, message, created_at
+      SELECT level, flow, linte_code, task_id, task_name, instance_id, message, created_at
       FROM automation_log
       WHERE created_at >= ${startUtc.toISOString()}
         AND created_at < ${endUtc.toISOString()}

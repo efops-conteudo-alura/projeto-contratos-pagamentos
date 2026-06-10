@@ -1,7 +1,7 @@
 import { sql } from "../lib/db";
 
 type Flow = "linte→clickup" | "clickup→linte" | "linte-v2→clickup" | "clickup→linte-v2";
-type Context = { linteCode?: string; taskId?: string; taskName?: string };
+type Context = { linteCode?: string; taskId?: string; taskName?: string; instanceId?: string };
 
 async function insertLog(
   level: "info" | "error",
@@ -11,8 +11,8 @@ async function insertLog(
 ): Promise<void> {
   try {
     await sql`
-      INSERT INTO automation_log (level, flow, linte_code, task_id, task_name, message)
-      VALUES (${level}, ${flow}, ${context?.linteCode ?? null}, ${context?.taskId ?? null}, ${context?.taskName ?? null}, ${message})
+      INSERT INTO automation_log (level, flow, linte_code, task_id, task_name, instance_id, message)
+      VALUES (${level}, ${flow}, ${context?.linteCode ?? null}, ${context?.taskId ?? null}, ${context?.taskName ?? null}, ${context?.instanceId ?? null}, ${message})
     `;
   } catch (err) {
     console.error("[logger] Falha ao inserir log no banco:", err);

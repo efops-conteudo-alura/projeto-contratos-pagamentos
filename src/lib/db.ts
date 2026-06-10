@@ -12,10 +12,12 @@ export async function ensureSchema(): Promise<void> {
       linte_code TEXT,
       task_id TEXT,
       task_name TEXT,
+      instance_id TEXT,
       message TEXT NOT NULL
     )
   `;
   await sql`ALTER TABLE automation_log ADD COLUMN IF NOT EXISTS task_name TEXT`;
+  await sql`ALTER TABLE automation_log ADD COLUMN IF NOT EXISTS instance_id TEXT`;
   await sql`ALTER TABLE automation_log DROP CONSTRAINT IF EXISTS automation_log_flow_check`;
 }
 

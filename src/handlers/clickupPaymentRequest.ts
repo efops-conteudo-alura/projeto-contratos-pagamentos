@@ -103,6 +103,7 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
       linteCode,
       taskId: task.id,
       taskName: task.name,
+      instanceId,
     });
     return;
   }
@@ -126,6 +127,7 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
         linteCode,
         taskId: task.id,
         taskName: task.name,
+        instanceId,
       });
       return;
     }
@@ -140,5 +142,6 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
     linteCode,
     taskId: task.id,
     taskName: task.name,
+    instanceId,
   });
 }

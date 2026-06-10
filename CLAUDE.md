@@ -67,8 +67,8 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 
 1. Extrai `linteCode` de `payload.payload.variables` buscando `label === "ID Linte"` (UUID: `pP3Ds4ewFwjsWryHT`; valor ex: `"ALN-254"`)
 2. Extrai `instanceId` de `body.instanceId` (ou `body.payload.instanceId`)
-3. Mapeia status via `statusMappingV2.ts` — se não mapeado, ignora
-4. Busca tarefa no ClickUp pelo "Código Linte", atualiza status, e grava `instanceId` no campo custom **"Linte Instance ID"** (usado pelo Fluxo 2)
+3. Busca tarefa no ClickUp pelo "Código Linte" e grava `instanceId` no campo custom **"Linte Instance ID"** em **qualquer** webhook, mesmo de status não mapeado (usado pelo Fluxo 2 e pelos links do relatório diário)
+4. Mapeia status via `statusMappingV2.ts` — se mapeado, atualiza o status da tarefa; se não, apenas o instanceId é gravado
 
 **Mapeamentos v2:**
 
