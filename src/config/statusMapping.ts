@@ -1,6 +1,9 @@
 export interface StatusMappingEntry {
   targetStatus: string;
   requiredCurrentStatus?: string | string[];
+  // Quando true, além de mudar o status, posta o comentário-lembrete de pagamento na tarefa
+  // (usado no Fluxo 1b v2: "Finalizado" → AGUARDANDO PAGAMENTO).
+  postReminder?: boolean;
 }
 
 export const LINTE_TO_CLICKUP: Record<string, StatusMappingEntry> = {

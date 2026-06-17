@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handleClickUpPaymentRequest } from "../../src/handlers/clickupPaymentRequest";
+import { handleClickUpPaymentDate } from "../../src/handlers/clickupPaymentDate";
 import { handleClickUpFinalized } from "../../src/handlers/clickupFinalized";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -9,13 +10,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log("[clickup webhook]", { event: payload?.event, task_id: payload?.task_id });
 
   if (payload?.event === "taskCommentPosted") {
-    try {
-      await handleClickUpPaymentRequest(payload);
-      return res.status(200).json({ ok: true });
-    } catch (err) {
-      console.error("[clickup webhook] erro:", err);
-      return res.status(200).json({ ok: false, error: String(err) });
+    // Dois fluxos reagem a comentário e são mutuamente exclusivos pelo conteúdo:
+    // - handleClickUpPaymentRequest: "pedido de pagamento enviado" → aciona a Linte
+    // - handleClickUpPaymentDate: mensagem de pagamento com data → preenche "Previsão de pagamento"
+    // allSettled garante que um erro em um não impeça o outro.
+    const results = await Promise.allSettled([
+      handleClickUpPaymentRequest(payload),
+      handleClickUpPaymentDate(payload),
+    ]);
+    for (const r of results) {
+      if (r.status === "rejected") console.error("[clickup webhook] handler de comentário falhou:", r.reason);
     }
+    return res.status(200).json({ ok: true });
   }
 
   if (payload?.event === "taskStatusUpdated" || payload?.event === "taskUpdated") {

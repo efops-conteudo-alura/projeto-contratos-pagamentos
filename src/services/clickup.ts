@@ -130,15 +130,25 @@ export async function setTaskTextField(taskId: string, fieldName: string, value:
   }
 }
 
-export async function addTaskComment(taskId: string, text: string): Promise<void> {
+export async function addTaskComment(
+  taskId: string,
+  text: string,
+  opts?: { assignee?: number; notifyAll?: boolean }
+): Promise<void> {
+  // A API do ClickUp não tem menção "@" que notifique — atribuir o comentário (assignee)
+  // é o que gera notificação/item de ação confiável para a pessoa.
+  const body: Record<string, unknown> = { comment_text: text };
+  if (opts?.assignee) body.assignee = opts.assignee;
+  if (opts?.notifyAll !== undefined) body.notify_all = opts.notifyAll;
+
   const res = await fetch(`${BASE}/task/${taskId}/comment`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ comment_text: text }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`ClickUp addTaskComment falhou (${res.status}): ${body}`);
+    const responseBody = await res.text();
+    throw new Error(`ClickUp addTaskComment falhou (${res.status}): ${responseBody}`);
   }
 }
 

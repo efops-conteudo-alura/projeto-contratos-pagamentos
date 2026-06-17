@@ -72,10 +72,26 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 
 **Mapeamentos v2:**
 
-| Linte v2 | ClickUp |
-|---|---|
-| Em Assinatura | ENVIADO PARA ASSINATURA |
-| Enviar Nota Fiscal | CONTRATO ATIVO |
+| Linte v2 | ClickUp | Observação |
+|---|---|---|
+| Em Assinatura | ENVIADO PARA ASSINATURA | |
+| Enviar Nota Fiscal | CONTRATO ATIVO | |
+| Finalizado | AGUARDANDO PAGAMENTO | só se estiver em LIBERADO PARA PAGAMENTO; posta lembrete (ver Fluxo 1c) |
+
+---
+
+### Fluxo 1c — Pagamento v2 (semiautomático)
+
+Substitui a extração automática de data da v1 (que dependia de ler mensagens da Linte, API ainda indisponível na v2). Tudo acontece no lado ClickUp:
+
+**Parte A — Linte "Finalizado" → ClickUp** (em `linteV2StatusUpdate.ts`):
+1. Muda status para **AGUARDANDO PAGAMENTO** (apenas se a tarefa estiver em LIBERADO PARA PAGAMENTO)
+2. Posta **dois comentários-lembrete** (um atribuído ao Vasco `78890939`, outro à Evelyn `72774719` — IDs em `REMINDER_ASSIGNEES`). A API do ClickUp não tem menção "@" que notifique; só atribuir o comentário gera notificação/item de ação. O texto do lembrete **não contém data** de propósito, para não auto-disparar a Parte B.
+
+**Parte B — comentário colado → "Previsão de pagamento"** (em `clickupPaymentDate.ts`, gatilho `taskCommentPosted`):
+- Quando alguém cola a mensagem de pagamento da Linte (ex.: "programado para 25/Junho"), o detector compartilhado `src/lib/paymentDate.ts` (`extractPaymentDate`, o mesmo da v1) extrai a data e preenche **"Previsão de pagamento"**.
+- Só age se o comentário tiver palavra-chave de pagamento **E** uma data; senão é ignorado em silêncio.
+- O webhook `taskCommentPosted` chama os dois handlers (`handleClickUpPaymentRequest` + `handleClickUpPaymentDate`) via `Promise.allSettled`.
 
 ---
 
