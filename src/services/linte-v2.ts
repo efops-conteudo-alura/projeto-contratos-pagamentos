@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import { logInfo } from "./logger";
 
 const ENDPOINT = "https://docs-api.linte.com/graphql";
 
@@ -68,11 +69,11 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
   const flowRegisters = data?.instance?.flowRegisters ?? [];
   const allSteps = flowRegisters.flatMap((fr) => fr.stepsRegisters);
 
-  // Log de diagnóstico: mostra exatamente o que a Linte devolveu para esta pasta.
-  // Se a lista vier vazia, a pasta não foi lida (permissão/escopo do token);
-  // se vier preenchida mas sem o statusId procurado, o ID do status mudou.
-  console.log("[linte-v2] diagnóstico stepRegister", {
-    instanceId,
+  // Diagnóstico persistido no banco (automation_log): mostra exatamente o que a Linte
+  // devolveu para esta pasta. Se a lista vier vazia, a pasta não foi lida
+  // (permissão/escopo do token); se vier preenchida mas sem o statusId procurado,
+  // o ID do status mudou. Gravamos via logger para conseguir ler o conteúdo cru.
+  const diagnostico = {
     statusIdProcurado: statusId,
     instanceEncontrada: data?.instance != null,
     passos: allSteps.map((sr) => ({
@@ -81,7 +82,8 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
       initialStatusId: sr.initialStatus?.id ?? null,
       initialStatusNome: sr.initialStatus?.name ?? null,
     })),
-  });
+  };
+  await logInfo("clickup→linte-v2", `DIAG stepRegister: ${JSON.stringify(diagnostico)}`, { instanceId });
 
   const openStep = allSteps.find((sr) => !sr.completed && sr.initialStatus?.id === statusId);
   return openStep?.id ?? null;
