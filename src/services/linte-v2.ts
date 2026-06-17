@@ -66,9 +66,24 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
   ) as { instance: { id: string; flowRegisters: FlowRegister[] } | null };
 
   const flowRegisters = data?.instance?.flowRegisters ?? [];
-  const openStep = flowRegisters
-    .flatMap((fr) => fr.stepsRegisters)
-    .find((sr) => !sr.completed && sr.initialStatus?.id === statusId);
+  const allSteps = flowRegisters.flatMap((fr) => fr.stepsRegisters);
+
+  // Log de diagnóstico: mostra exatamente o que a Linte devolveu para esta pasta.
+  // Se a lista vier vazia, a pasta não foi lida (permissão/escopo do token);
+  // se vier preenchida mas sem o statusId procurado, o ID do status mudou.
+  console.log("[linte-v2] diagnóstico stepRegister", {
+    instanceId,
+    statusIdProcurado: statusId,
+    instanceEncontrada: data?.instance != null,
+    passos: allSteps.map((sr) => ({
+      id: sr.id,
+      completed: sr.completed,
+      initialStatusId: sr.initialStatus?.id ?? null,
+      initialStatusNome: sr.initialStatus?.name ?? null,
+    })),
+  });
+
+  const openStep = allSteps.find((sr) => !sr.completed && sr.initialStatus?.id === statusId);
   return openStep?.id ?? null;
 }
 
