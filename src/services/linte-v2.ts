@@ -99,7 +99,7 @@ export async function updateInstanceVariables(
   variables: { id: string; value: string }[]
 ): Promise<void> {
   if (variables.length === 0) return;
-  await gql(
+  const data = await gql(
     `mutation AtualizarVariaveis($id: String!, $input: InstanceUpdateInput!) {
       instanceUpdate(id: $id, input: $input) {
         id
@@ -107,7 +107,19 @@ export async function updateInstanceVariables(
       }
     }`,
     { id: instanceId, input: { variables } }
-  );
+  ) as { instanceUpdate: { id: string; variables: { id: string; value: string }[] } | null };
+
+  // Diagnóstico: compara o que ENVIAMOS com o que a Linte DEVOLVEU. Útil para descobrir se um vrId
+  // (ex.: o do campo de arquivo "Nota Fiscal") foi aceito ou ignorado silenciosamente — o campo de
+  // arquivo do formulário não estava sendo preenchido na ALN-454, só a ramificação "Sim".
+  const retornadas = data?.instanceUpdate?.variables ?? [];
+  const diagnostico = {
+    enviadas: variables.map((v) => ({ id: v.id, value: v.value })),
+    retornadas: retornadas
+      .filter((v) => variables.some((e) => e.id === v.id))
+      .map((v) => ({ id: v.id, value: v.value })),
+  };
+  await logInfo("clickup→linte-v2", `DIAG instanceUpdate: ${JSON.stringify(diagnostico)}`, { instanceId });
 }
 
 // Conclui o passo aberto na Linte v2, fazendo o status avançar (ex.: "Enviar Nota Fiscal" → "Pagamento Liberado").
