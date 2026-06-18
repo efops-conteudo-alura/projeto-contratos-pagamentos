@@ -108,7 +108,7 @@ Substitui a extração automática de data da v1 (que dependia de ler mensagens 
 
 **v2 (3 chamadas em sequência, conforme orientação do TI da Linte):**
 1. Lê `instanceId` do campo custom **"Linte Instance ID"** da tarefa do ClickUp (gravado pelo Fluxo 1b). Se vazio, aborta — provavelmente o webhook v2 ainda não chegou.
-2. **Query** `instance(filter: { id: instanceId })` para descobrir o `stepRegisterId` aberto cujo `initialStatus.id === STATUS_ENVIAR_NOTA_FISCAL_ID` (`yNqSMByPtvGSRYr8k`).
+2. **Query** `instance(filter: { id: instanceId })` para descobrir o `stepRegisterId` aberto (`completed: false`) cujo `step.name === "Enviar Nota Fiscal"` (`STEP_ENVIAR_NOTA_FISCAL_NOME`). O TI confirmou (2026-06-18) que se compara `stepRegister.step.name` (não `initialStatus.id`): o antigo `yNqSMByPtvGSRYr8k` era um `InstanceStatus` (estágio da pasta), enquanto `initialStatus` é o `MilestoneStatus` de conclusão do passo — por isso nunca batia.
 3. Chama `instanceUpdate` preenchendo a ramificação **"Nota fiscal enviada?"** com `"Sim"` (vrId `a03ea467-3251-4d88-8697-6555d379f04d`). Se `PJ`, adiciona também a NF (vrId `6cDKfsDqr5cGAJt8c`, valor = URL pública do PDF — path deve terminar com `nome.ext`).
 4. Chama `completeStep(id: stepRegisterId)` — o status da pasta avança automaticamente para "Pagamento Liberado".
 
@@ -145,7 +145,7 @@ Busca logs do dia anterior no Postgres e envia Adaptive Card para `TEAMS_WEBHOOK
 LINTE_API_KEY=
 
 # Linte v2
-LINTE_V2_TOKEN=        # ⚠️ Pendente configurar na Vercel (token já fornecido pelo TI)
+LINTE_V2_TOKEN=        # configurado na Vercel
 # (LINTE_V2_CATEGORY_ID não é mais necessária — instanceId vem direto do webhook)
 
 # ClickUp
@@ -181,8 +181,8 @@ CRON_SECRET=
 - [x] `vrId` da ramificação **"Nota fiscal enviada?"** = `a03ea467-3251-4d88-8697-6555d379f04d`, valor literal `"Sim"` (recebido em 2026-05-13, já no código)
 - [x] Token da API v2 confirmado como ativo (recebido em 2026-05-13)
 - [x] Vasco: campo de texto **"Linte Instance ID"** criado na lista do ClickUp (em 2026-05-13)
-- [ ] Vasco: cadastrar `LINTE_V2_TOKEN` na Vercel (token já recebido e confirmado pelo TI)
-- [ ] Teste end-to-end: pedir ao TI o ID de uma pasta com o passo "Enviar Nota Fiscal" em aberto para disparar o webhook manualmente
+- [x] Vasco: cadastrar `LINTE_V2_TOKEN` na Vercel (token já recebido e confirmado pelo TI)
+- [ ] Teste end-to-end: validar o Fluxo 2 v2 na pasta **ALN-454** (`instanceId 7tWeormqPHirNJAmL`), que está em "Enviar Nota Fiscal". A correção do `step.name` já foi aplicada (2026-06-18); falta disparar `"pedido de pagamento enviado"` no ClickUp e confirmar que o passo é concluído e a pasta avança para "Pagamento Liberado"
 
 ### Desligar a Linte v1
 
@@ -208,5 +208,5 @@ Quando o TI confirmar que **nenhum contrato ativo** usa a Linte v1:
 | v2: status não atualiza no ClickUp | "ID Linte" ausente no payload ou status não mapeado | Log: "Variável não encontrada" ou "sem mapeamento" |
 | v2: "Pagamento Liberado" não muda | `LINTE_V2_TOKEN` não configurado ou expirado | Verificar variável na Vercel |
 | v2: tarefa sem "Linte Instance ID" | Campo custom não criado, ou webhook 1b ainda não chegou para essa pasta | Log: "Tarefa sem 'Linte Instance ID'" — criar campo no ClickUp e/ou aguardar webhook |
-| v2: stepRegister aberto não encontrado | Status atual da pasta não é "Enviar Nota Fiscal" (ID `yNqSMByPtvGSRYr8k` mudou?) | Confirmar status da pasta na Linte; se ID do status mudou, atualizar `STATUS_ENVIAR_NOTA_FISCAL_ID` em `linte-v2.ts` |
+| v2: stepRegister aberto não encontrado | Status atual da pasta não é "Enviar Nota Fiscal", ou o nome do passo mudou | Ver o DIAG no `automation_log` (lista os `stepNome` retornados); se o nome do passo mudou, atualizar `STEP_ENVIAR_NOTA_FISCAL_NOME` em `linte-v2.ts` |
 | v2: NF não aparece na Linte — PJ | URL do ClickUp não pública ou sem `.pdf` no path | Verificar se URL do anexo é acessível sem autenticação |

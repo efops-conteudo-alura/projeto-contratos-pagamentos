@@ -33,22 +33,25 @@ export const NF_VAR_REGISTER_ID = "6cDKfsDqr5cGAJt8c";
 // para decidir o caminho seguinte, então precisa ir preenchido junto com a NF antes do completeStep.
 export const NF_ENVIADA_VAR_REGISTER_ID = "a03ea467-3251-4d88-8697-6555d379f04d";
 
-// ID do status "Enviar Nota Fiscal" no fluxo Linte v2 (fornecido pelo TI: yNqSMByPtvGSRYr8k).
-// Usado para localizar o stepRegister aberto que precisa ser concluído quando o pagamento é solicitado via ClickUp.
-export const STATUS_ENVIAR_NOTA_FISCAL_ID = "yNqSMByPtvGSRYr8k";
+// Nome do passo "Enviar Nota Fiscal" no fluxo Linte v2.
+// O TI confirmou (2026-06-18) que o stepRegister tem o campo step { id name }, e step.name
+// corresponde ao payload.status.name do webhook. O antigo ID yNqSMByPtvGSRYr8k era um
+// InstanceStatus (estágio da pasta), não casava com stepRegister.initialStatus (MilestoneStatus
+// de conclusão do passo) — por isso o Fluxo 2 v2 nunca achava o passo. Agora comparamos por nome.
+export const STEP_ENVIAR_NOTA_FISCAL_NOME = "Enviar Nota Fiscal";
 
 interface FlowRegister {
   id: string;
   stepsRegisters: {
     id: string;
     completed: boolean;
-    initialStatus?: { id: string; name: string } | null;
+    step?: { id: string; name: string } | null;
   }[];
 }
 
-// Descobre o id do stepRegister aberto cujo initialStatus bate com o status atual da pasta.
-// É esse id que entra em completeStep(id: ...) para avançar o fluxo na Linte v2.
-export async function findOpenStepRegisterId(instanceId: string, statusId: string): Promise<string | null> {
+// Descobre o id do stepRegister aberto (completed: false) cujo step.name bate com o nome do passo
+// procurado (ex.: "Enviar Nota Fiscal"). É esse id que entra em completeStep(id: ...) para avançar o fluxo.
+export async function findOpenStepRegisterId(instanceId: string, stepName: string): Promise<string | null> {
   const data = await gql(
     `query BuscarStepRegister($instanceId: String!) {
       instance(filter: { id: $instanceId }) {
@@ -58,7 +61,7 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
           stepsRegisters {
             id
             completed
-            initialStatus { id name }
+            step { id name }
           }
         }
       }
@@ -71,21 +74,21 @@ export async function findOpenStepRegisterId(instanceId: string, statusId: strin
 
   // Diagnóstico persistido no banco (automation_log): mostra exatamente o que a Linte
   // devolveu para esta pasta. Se a lista vier vazia, a pasta não foi lida
-  // (permissão/escopo do token); se vier preenchida mas sem o statusId procurado,
-  // o ID do status mudou. Gravamos via logger para conseguir ler o conteúdo cru.
+  // (permissão/escopo do token); se vier preenchida mas sem o stepName procurado,
+  // o nome do passo mudou. Gravamos via logger para conseguir ler o conteúdo cru.
   const diagnostico = {
-    statusIdProcurado: statusId,
+    stepNameProcurado: stepName,
     instanceEncontrada: data?.instance != null,
     passos: allSteps.map((sr) => ({
       id: sr.id,
       completed: sr.completed,
-      initialStatusId: sr.initialStatus?.id ?? null,
-      initialStatusNome: sr.initialStatus?.name ?? null,
+      stepId: sr.step?.id ?? null,
+      stepNome: sr.step?.name ?? null,
     })),
   };
   await logInfo("clickup→linte-v2", `DIAG stepRegister: ${JSON.stringify(diagnostico)}`, { instanceId });
 
-  const openStep = allSteps.find((sr) => !sr.completed && sr.initialStatus?.id === statusId);
+  const openStep = allSteps.find((sr) => !sr.completed && sr.step?.name === stepName);
   return openStep?.id ?? null;
 }
 

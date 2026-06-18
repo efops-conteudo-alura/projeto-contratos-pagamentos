@@ -6,7 +6,7 @@ import {
   completeStep,
   NF_VAR_REGISTER_ID,
   NF_ENVIADA_VAR_REGISTER_ID,
-  STATUS_ENVIAR_NOTA_FISCAL_ID,
+  STEP_ENVIAR_NOTA_FISCAL_NOME,
 } from "../services/linte-v2";
 import { logInfo, logError } from "../services/logger";
 
@@ -96,8 +96,8 @@ async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: strin
     return;
   }
 
-  // 1) Descobre o stepRegister aberto cujo initialStatus bate com "Enviar Nota Fiscal".
-  const stepRegisterId = await findOpenStepRegisterId(instanceId, STATUS_ENVIAR_NOTA_FISCAL_ID);
+  // 1) Descobre o stepRegister aberto cujo step.name é "Enviar Nota Fiscal".
+  const stepRegisterId = await findOpenStepRegisterId(instanceId, STEP_ENVIAR_NOTA_FISCAL_NOME);
   if (!stepRegisterId) {
     await logError("clickup→linte-v2", `stepRegister aberto não encontrado para instanceId=${instanceId} — verifique se o status atual é "Enviar Nota Fiscal"`, {
       linteCode,
