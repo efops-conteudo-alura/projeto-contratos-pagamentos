@@ -110,9 +110,13 @@ Substitui a extração automática de data da v1 (que dependia de ler mensagens 
 1. Lê `instanceId` do campo custom **"Linte Instance ID"** da tarefa do ClickUp (gravado pelo Fluxo 1b). Se vazio, aborta — provavelmente o webhook v2 ainda não chegou.
 2. **Query** `instance(filter: { id: instanceId })` para descobrir o `stepRegisterId` aberto (`completed: false`) cujo `step.name === "Enviar Nota Fiscal"` (`STEP_ENVIAR_NOTA_FISCAL_NOME`). O TI confirmou (2026-06-18) que se compara `stepRegister.step.name` (não `initialStatus.id`): o antigo `yNqSMByPtvGSRYr8k` era um `InstanceStatus` (estágio da pasta), enquanto `initialStatus` é o `MilestoneStatus` de conclusão do passo — por isso nunca batia.
 3. Chama `instanceUpdate` preenchendo a ramificação **"Nota fiscal enviada?"** com `"Sim"` (vrId `a03ea467-3251-4d88-8697-6555d379f04d`). Se `PJ`, adiciona também a NF (vrId `6cDKfsDqr5cGAJt8c`, valor = URL pública do PDF — path deve terminar com `nome.ext`).
-4. Chama `completeStep(id: stepRegisterId)` — o status da pasta avança automaticamente para "Pagamento Liberado".
+4. Chama `completeStep(id: stepRegisterId)` — o passo "Enviar Nota Fiscal" é marcado como concluído.
 
-> ⚠️ A ramificação **precisa** ir preenchida antes do `completeStep` mesmo para RPA/INVOICE: algumas automações de workflow da Linte decidem o caminho seguinte pelos valores das variáveis. Tecnicamente o `completeStep` aceita ser chamado sem preencher, mas o fluxo pode não seguir como esperado.
+> ⚠️ **Pendência (testado em 2026-06-18, ALN-454 / PJ):** as 4 etapas acima funcionam — acha o passo por `step.name`, anexa a NF, preenche "Nota fiscal enviada?" = "Sim" e conclui o passo. PORÉM o **status da pasta NÃO avança automaticamente** para "Pagamento Liberado": ela fica em "Enviar Nota Fiscal" e o fluxo fica sem passos ativos. **Provável causa raiz:** o campo de arquivo **"Nota Fiscal"** (vrId `6cDKfsDqr5cGAJt8c`) ficou **vazio** no formulário do passo — só a ramificação "Sim" foi gravada. Numa pasta PJ resolvida manualmente (ALN-369) o campo tinha o PDF e o status avançou; na nossa API, não. Suspeita: o vrId do arquivo está errado, ou o formato do valor (URL em texto) não é aceito para anexo. Log `DIAG instanceUpdate` (commit 68cc6e1) compara enviado vs. devolvido para confirmar no próximo teste. **Aguardando o TI** confirmar vrId/formato do campo de arquivo. Workaround: mudar o status manualmente na Linte (Opções → Status → "Pagamento Liberado").
+>
+> 💡 **RPA/INVOICE provavelmente já funcionam:** contratos RPA e INVOICE não têm nota fiscal e, no fluxo manual, o passo "Enviar Nota Fiscal" avança **sem anexo**. Ou seja, o campo de arquivo "Nota Fiscal" parece ser requisito **só para PJ**. Como a v2 só concluiu passo via API a partir de 2026-06-18 (e só foi testada com PJ), vale testar um RPA/INVOICE pelo ClickUp: se avançar, o Fluxo 2 v2 já está OK para esses 2 tipos e resta só o anexo do PJ.
+>
+> A ramificação **precisa** ir preenchida antes do `completeStep` mesmo para RPA/INVOICE: algumas automações de workflow da Linte decidem o caminho seguinte pelos valores das variáveis.
 
 ---
 
