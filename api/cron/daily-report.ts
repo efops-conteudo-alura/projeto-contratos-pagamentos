@@ -250,7 +250,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const infoRows = rows.filter((r) => {
     const msg = r.message.toLowerCase();
-    return r.level === "info" && !msg.includes("transição ignorada") && !msg.includes("ignorando");
+    // Logs DIAG são diagnósticos crus (JSON) usados só para depuração; ficam no banco
+    // mas não devem aparecer no relatório do Teams.
+    return (
+      r.level === "info" &&
+      !msg.includes("transição ignorada") &&
+      !msg.includes("ignorando") &&
+      !msg.startsWith("diag ")
+    );
   });
   const errorRows = rows.filter((r) => r.level === "error");
 
