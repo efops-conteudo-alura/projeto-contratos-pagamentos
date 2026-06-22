@@ -1,4 +1,5 @@
 import { LINTE_V2_TO_CLICKUP } from "../config/statusMappingV2";
+import { statusRank } from "../config/statusMapping";
 import { findTaskByLinteCode, updateTaskStatus, setTaskTextField, addTaskComment } from "../services/clickup";
 import { logInfo, logError } from "../services/logger";
 
@@ -59,7 +60,16 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
     return;
   }
 
-  // Só aplica a transição se a tarefa estiver num status de origem esperado (espelha o Fluxo 1 v1).
+  // Guardrail de status no ClickUp: observar onde a tarefa está antes de mover.
+  // Webhooks da Linte podem chegar atrasados ou fora de ordem (foi o caso da ALN-820:
+  // já em LIBERADO PARA PAGAMENTO, recebeu um "Em Assinatura" atrasado e seria puxada
+  // de volta para ENVIADO PARA ASSINATURA). Regras:
+  //   - requiredCurrentStatus: allowlist estrita de status de origem (caso "Finalizado").
+  //   - senão: só permite AVANÇAR no funil (rank do alvo > rank atual); nunca retroceder
+  //     nem repetir o status atual.
+  const currentRank = statusRank(task.currentStatus);
+  const targetRank = statusRank(mapping.targetStatus);
+
   if (mapping.requiredCurrentStatus) {
     const currentNormalized = task.currentStatus.toUpperCase();
     const allowed = Array.isArray(mapping.requiredCurrentStatus)
@@ -76,6 +86,22 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
       );
       return;
     }
+  } else if (currentRank === -1 || targetRank === -1) {
+    // Status fora do funil conhecido: não dá para garantir o sentido da transição — não mexe.
+    await logInfo(
+      "linte-v2→clickup",
+      `Transição ignorada: status fora do funil conhecido (atual "${task.currentStatus}", alvo "${mapping.targetStatus}")`,
+      { linteCode, taskId: task.id, taskName: task.name, instanceId }
+    );
+    return;
+  } else if (targetRank <= currentRank) {
+    // Evita retrocesso (ou repetição) do funil por webhook atrasado/fora de ordem.
+    await logInfo(
+      "linte-v2→clickup",
+      `Transição ignorada: não retrocede de "${task.currentStatus}" para "${mapping.targetStatus}"`,
+      { linteCode, taskId: task.id, taskName: task.name, instanceId }
+    );
+    return;
   }
 
   await updateTaskStatus(task.id, mapping.targetStatus);
