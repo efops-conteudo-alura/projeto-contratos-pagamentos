@@ -29,11 +29,15 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
 
   const task = await findTaskByLinteCode(linteCode);
   if (!task) {
-    if (mapping) {
-      await logError("linte-v2→clickup", `Tarefa com código "${linteCode}" não encontrada no ClickUp`, { linteCode, instanceId });
-    } else {
-      await logInfo("linte-v2→clickup", `Status "${statusName}" sem mapeamento e tarefa "${linteCode}" não encontrada — ignorando`, { linteCode, instanceId });
-    }
+    // "Tarefa não encontrada" NÃO é erro: nem todo contrato da Linte é demanda nossa.
+    // Contratos de outros times existem na Linte mas nunca têm tarefa no ClickUp (ex.: ALN-962),
+    // então o caso esperado é simplesmente ignorar — independente de o status ser mapeado ou não.
+    // Fica registrado como info "ignorando" (não aparece na seção de Erros do relatório diário).
+    await logInfo(
+      "linte-v2→clickup",
+      `Tarefa "${linteCode}" não encontrada no ClickUp (status "${statusName}") — ignorando`,
+      { linteCode, instanceId }
+    );
     return;
   }
 
