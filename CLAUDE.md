@@ -97,6 +97,8 @@ Substitui a extração automática de data da v1 (que dependia de ler mensagens 
 
 ### Fluxo 2 — ClickUp → Linte (pagamento)
 
+> ⏸️ **v2 DESLIGADO TEMPORARIAMENTE (2026-07-01, a pedido do Vasco).** A flag `FLUXO2_V2_ATIVO = false` em `src/handlers/clickupPaymentRequest.ts` pausa **só** o ramo v2 (`ALN-*`): ao receber `"pedido de pagamento enviado"`, o handler apenas registra no log e não chama a Linte v2 (não busca stepRegister, não preenche variáveis, não conclui o passo). O ramo v1 (`ALU-*`) e todos os demais fluxos seguem normais. **Para religar:** mudar a flag para `true`.
+
 **Trigger:** Comentário exato `"pedido de pagamento enviado"` no ClickUp
 
 **Roteamento por prefixo do "Código Linte":** `ALU-*` → v1 · `ALN-*` → v2

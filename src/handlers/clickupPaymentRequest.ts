@@ -21,6 +21,14 @@ interface ClickUpCommentPayload {
 
 const TRIGGER_TEXT = "pedido de pagamento enviado";
 
+// ⚠️ DESLIGADO TEMPORARIAMENTE (2026-07-01, a pedido do Vasco):
+// O Fluxo 2 v2 ("pedido de pagamento enviado" para contratos ALN-*) está pausado.
+// Enquanto estiver false, o handler apenas registra no log e NÃO chama a Linte v2
+// (não busca stepRegister, não preenche variáveis, não conclui o passo).
+// O Fluxo 2 v1 (ALU-*) e todos os demais fluxos continuam funcionando normalmente.
+// Para religar: mudar para true.
+const FLUXO2_V2_ATIVO = false;
+
 export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload): Promise<void> {
   const commentText = payload.history_items?.[0]?.comment?.text_content?.trim() ?? "";
   if (commentText.toLowerCase() !== TRIGGER_TEXT) return;
@@ -85,6 +93,15 @@ export async function handleClickUpPaymentRequest(payload: ClickUpCommentPayload
 }
 
 async function handlePaymentV2(task: ClickUpTask, linteCode: string, tipo: string): Promise<void> {
+  if (!FLUXO2_V2_ATIVO) {
+    await logInfo("clickup→linte-v2", `Fluxo 2 v2 DESLIGADO temporariamente — pedido de pagamento ignorado (${tipo})`, {
+      linteCode,
+      taskId: task.id,
+      taskName: task.name,
+    });
+    return;
+  }
+
   const instanceIdField = task.custom_fields.find((f) => f.name === "Linte Instance ID");
   const instanceId = typeof instanceIdField?.value === "string" ? instanceIdField.value.trim() : "";
   if (!instanceId) {
