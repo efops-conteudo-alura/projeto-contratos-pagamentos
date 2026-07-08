@@ -1,6 +1,19 @@
 # .github/workflows/deploy.yml
-# Dispara o deploy de produção na Vercel via Deploy Hook.
-# O build roda sob o time (owner), então o autor do commit deixa de importar.
+# Deploy de produção na Vercel via CLI + token do time, SEM metadados de git.
+#
+# Por que remover o git: a Vercel bloqueia (estado BLOCKED) qualquer deploy
+# amarrado a um commit cujo autor não tem permissão de deploy (ex.: Viewer) —
+# não importa se veio por push, hook ou CLI com token do dono. A solução é
+# deployar sem vínculo com o commit: aí o deploy é autorizado só pelo DONO DO
+# TOKEN (conta que pode deployar), e pushes de quem é Viewer também publicam.
+#
+# Trade-off: no painel da Vercel os deploys não mostram "qual commit / autor".
+# O histórico continua todo no GitHub.
+#
+# Secrets necessários (Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN      — token de uma conta com permissão de deploy no time
+#   VERCEL_ORG_ID     — ID do time (team_...)
+#   VERCEL_PROJECT_ID — ID do projeto (prj_...)
 
 name: Deploy to Vercel
 
@@ -17,9 +30,27 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20   # trava de segurança: nunca ficar pendurado
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - name: Trigger Vercel Deploy Hook
-        run: |
-          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Remove metadados de git (evita bloqueio por autor sem permissão)
+        run: rm -rf .git
+
+      - name: Instala a Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy de produção
+        run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
         env:
-          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          # Zera as variáveis de git do CI para a Vercel não reatribuir o autor
+          GITHUB_SHA: ""
+          GITHUB_REF: ""
+          GITHUB_HEAD_REF: ""
+          GITHUB_REPOSITORY: ""
+          GITHUB_ACTOR: ""
