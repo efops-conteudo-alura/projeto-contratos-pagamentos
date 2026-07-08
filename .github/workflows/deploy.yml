@@ -1,0 +1,25 @@
+# .github/workflows/deploy.yml
+# Dispara o deploy de produção na Vercel via Deploy Hook.
+# O build roda sob o time (owner), então o autor do commit deixa de importar.
+
+name: Deploy to Vercel
+
+on:
+  push:
+    branches:
+      - main
+
+# Evita deploys concorrentes empilhando na mesma branch
+concurrency:
+  group: vercel-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel Deploy Hook
+        run: |
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
