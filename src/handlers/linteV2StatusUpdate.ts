@@ -9,6 +9,14 @@ interface LinteV2StatusPayload {
   instanceId: string;
 }
 
+// ⚠️ DESLIGADO TEMPORARIAMENTE (2026-07-28, a pedido do Vasco):
+// A gravação automática do instanceId no campo custom "Linte Instance ID" do card está pausada.
+// Enquanto estiver false, o handler NÃO escreve nada nesse campo — o resto do Fluxo 1b
+// (atualização de status e lembretes) continua normal, e o instanceId segue registrado no log.
+// Combina com FLUXO2_V2_ATIVO = false em clickupPaymentRequest.ts, que é quem consumia o campo.
+// Para religar: mudar para true.
+const GRAVAR_INSTANCE_ID = false;
+
 // Quem deve receber o lembrete de pagamento como item de ação (notificação garantida no ClickUp).
 const REMINDER_ASSIGNEES: { name: string; id: number }[] = [
   { name: "Vasco Ginde", id: 78890939 },
@@ -43,19 +51,21 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
 
   // Persiste o instanceId em QUALQUER webhook da v2 (mesmo de status não mapeado), para que o
   // fluxo ClickUp → Linte v2 (pedido de pagamento) possa usá-lo depois sem consultar a Linte.
-  try {
-    await setTaskTextField(task.id, "Linte Instance ID", instanceId);
-  } catch (err) {
-    await logError("linte-v2→clickup", `Falha ao gravar "Linte Instance ID": ${String(err)}`, {
-      linteCode,
-      taskId: task.id,
-      taskName: task.name,
-      instanceId,
-    });
+  if (GRAVAR_INSTANCE_ID) {
+    try {
+      await setTaskTextField(task.id, "Linte Instance ID", instanceId);
+    } catch (err) {
+      await logError("linte-v2→clickup", `Falha ao gravar "Linte Instance ID": ${String(err)}`, {
+        linteCode,
+        taskId: task.id,
+        taskName: task.name,
+        instanceId,
+      });
+    }
   }
 
   if (!mapping) {
-    await logInfo("linte-v2→clickup", `Status "${statusName}" sem mapeamento — instanceId gravado, ignorando atualização de status`, {
+    await logInfo("linte-v2→clickup", `Status "${statusName}" sem mapeamento — ignorando atualização de status`, {
       linteCode,
       taskId: task.id,
       taskName: task.name,

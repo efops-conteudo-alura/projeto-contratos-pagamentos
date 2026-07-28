@@ -65,10 +65,12 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 
 **Trigger:** `WORKFLOW_EVENT` em `api/webhooks/linte-v2.ts`
 
+> ⏸️ **Gravação do "Linte Instance ID" DESLIGADA (2026-07-28, a pedido do Vasco).** A flag `GRAVAR_INSTANCE_ID = false` em `src/handlers/linteV2StatusUpdate.ts` faz o passo 3 abaixo não escrever nada no campo custom do card. O `instanceId` continua sendo lido do webhook e registrado no `automation_log` (logo, os links do relatório diário seguem funcionando). Combina com o Fluxo 2 v2 desligado, que era o consumidor do campo. **Para religar:** mudar a flag para `true`.
+
 1. Extrai `linteCode` de `payload.payload.variables` buscando `label === "ID Linte"` (UUID: `pP3Ds4ewFwjsWryHT`; valor ex: `"ALN-254"`)
 2. Extrai `instanceId` de `body.instanceId` (ou `body.payload.instanceId`)
-3. Busca tarefa no ClickUp pelo "Código Linte" e grava `instanceId` no campo custom **"Linte Instance ID"** em **qualquer** webhook, mesmo de status não mapeado (usado pelo Fluxo 2 e pelos links do relatório diário)
-4. Mapeia status via `statusMappingV2.ts` — se mapeado, atualiza o status da tarefa; se não, apenas o instanceId é gravado
+3. Busca tarefa no ClickUp pelo "Código Linte" e — **quando `GRAVAR_INSTANCE_ID` estiver `true`** — grava `instanceId` no campo custom **"Linte Instance ID"** em **qualquer** webhook, mesmo de status não mapeado (usado pelo Fluxo 2)
+4. Mapeia status via `statusMappingV2.ts` — se mapeado, atualiza o status da tarefa; se não, ignora
 
 **Mapeamentos v2:**
 
