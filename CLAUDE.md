@@ -22,6 +22,7 @@ api/
     clickup.ts          # Webhooks ClickUp
   cron/
     daily-report.ts     # Relatório diário → Teams (08h BRT)
+    payment-report.ts   # Pagamentos agendados do dia → Teams (09h BRT)
 src/
   config/
     statusMapping.ts    # Status Linte v1 → ClickUp
@@ -132,6 +133,19 @@ Busca logs do dia anterior no Postgres e envia Adaptive Card para `TEAMS_WEBHOOK
 
 ---
 
+### Fluxo 4 — Cron: pagamentos agendados do dia
+
+**Trigger:** `0 12 * * *` UTC (09h BRT) · `api/cron/payment-report.ts`
+
+Funciona como uma fila em duas etapas:
+
+1. **Entrada na fila** (`src/handlers/clickupFinalized.ts`): quando uma tarefa muda para o status **FINALIZADO** no ClickUp (webhook `taskStatusUpdated`/`taskUpdated` em `api/webhooks/clickup.ts`), o handler grava `task_id`, "Código Linte" e "Instrutor(a)" na tabela `payment_queue` (Postgres). `ON CONFLICT (task_id) DO NOTHING` evita duplicatas.
+2. **Envio** (`api/cron/payment-report.ts`): às 09h BRT, o cron busca tudo com `sent = FALSE`, envia Adaptive Card "✅ Pagamentos agendados para hoje" para `TEAMS_PAYMENT_WEBHOOK_URL` (webhook próprio, separado do relatório diário) e marca os registros como `sent = TRUE`.
+
+Se a fila estiver vazia, nenhuma mensagem é enviada.
+
+---
+
 ## Serviços
 
 | Arquivo | Protocolo | Base URL | Auth |
@@ -162,7 +176,8 @@ CLICKUP_LIST_ID=
 
 # Infra
 POSTGRES_URL=
-TEAMS_WEBHOOK_URL=
+TEAMS_WEBHOOK_URL=          # relatório diário (Fluxo 3)
+TEAMS_PAYMENT_WEBHOOK_URL=  # pagamentos agendados (Fluxo 4)
 CRON_SECRET=
 ```
 
