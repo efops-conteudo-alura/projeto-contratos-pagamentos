@@ -233,3 +233,13 @@ Quando o TI confirmar que **nenhum contrato ativo** usa a Linte v1:
 | v2: tarefa sem "Linte Instance ID" | Campo custom não criado, ou webhook 1b ainda não chegou para essa pasta | Log: "Tarefa sem 'Linte Instance ID'" — criar campo no ClickUp e/ou aguardar webhook |
 | v2: stepRegister aberto não encontrado | Status atual da pasta não é "Enviar Nota Fiscal", ou o nome do passo mudou | Ver o DIAG no `automation_log` (lista os `stepNome` retornados); se o nome do passo mudou, atualizar `STEP_ENVIAR_NOTA_FISCAL_NOME` em `linte-v2.ts` |
 | v2: NF não aparece na Linte — PJ | URL do ClickUp não pública ou sem `.pdf` no path | Verificar se URL do anexo é acessível sem autenticação |
+
+## Deploy
+
+Conta Vercel: Alura
+Escopo: aluras-projects-3644c498
+Credencial: VERCEL_TOKEN vem de .claude/settings.local.json
+Publicação em produção sai pela GitHub Action `.github/workflows/deploy.yml`, disparada pelo push. Nunca rodar `vercel deploy` manual (mesmo fluxo do hub-efops).
+Todo comando `vercel` precisa da flag `--token "$VERCEL_TOKEN"` (a CLI não lê a variável sozinha).
+Rodar `vercel whoami --token "$VERCEL_TOKEN"` e conferir a conta antes de qualquer comando `vercel`.
+Nunca rodar `vercel login` nem `vercel switch`.

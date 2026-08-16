@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(vercel login*)",
+      "Bash(vercel switch*)"
+    ]
+  }
+}

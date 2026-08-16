@@ -6,4 +6,4 @@ dist/
 
 # vercel
 .vercel
-.mcp.json
+.mcp.json.claude/settings.local.json
