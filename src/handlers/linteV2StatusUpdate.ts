@@ -17,6 +17,13 @@ interface LinteV2StatusPayload {
 // Para religar: mudar para true.
 const GRAVAR_INSTANCE_ID = false;
 
+// ⚠️ FLUXO 1c DESLIGADO (2026-08-20, a pedido do Vasco):
+// Enquanto estiver false, NÃO posta os comentários-lembrete (Vasco/Evelyn) quando a pasta
+// é finalizada na Linte. O mapeamento "Finalizado" também está comentado em statusMappingV2.ts,
+// então o card nem muda de status. A mesma flag existe em clickupPaymentDate.ts (Parte B).
+// Para religar: mudar para true nos dois handlers e descomentar o mapeamento.
+export const FLUXO1C_ATIVO = false;
+
 // Quem deve receber o lembrete de pagamento como item de ação (notificação garantida no ClickUp).
 const REMINDER_ASSIGNEES: { name: string; id: number }[] = [
   { name: "Vasco Ginde", id: 78890939 },
@@ -129,7 +136,14 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
 
   // Lembrete para o time ir colar manualmente a mensagem de pagamento da Linte.
   // Um comentário atribuído a cada pessoa — assim os dois recebem o item de ação.
-  if (mapping.postReminder) {
+  if (mapping.postReminder && !FLUXO1C_ATIVO) {
+    await logInfo("linte-v2→clickup", "Fluxo 1c desligado — lembrete de pagamento não postado", {
+      linteCode,
+      taskId: task.id,
+      taskName: task.name,
+      instanceId,
+    });
+  } else if (mapping.postReminder) {
     for (const assignee of REMINDER_ASSIGNEES) {
       try {
         await addTaskComment(task.id, REMINDER_TEXT, { assignee: assignee.id });

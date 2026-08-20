@@ -195,7 +195,17 @@ async function sendTeamsAlert(url: string, message: string): Promise<void> {
   }
 }
 
+// ⚠️ FLUXO 3 DESLIGADO (2026-08-20, a pedido do Vasco):
+// O agendamento foi removido do vercel.json; esta flag é uma segunda trava caso a rota seja
+// chamada manualmente. Para religar: mudar para true E recolocar o cron no vercel.json.
+const FLUXO3_ATIVO = false;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!FLUXO3_ATIVO) {
+    console.log("[daily-report] Fluxo 3 desligado — relatório não enviado");
+    return res.status(200).json({ ok: true, skipped: "fluxo3-desligado" });
+  }
+
   const expectedToken = process.env.CRON_SECRET;
   const authHeader = req.headers["authorization"];
 

@@ -79,11 +79,13 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 |---|---|---|
 | Em Assinatura | ENVIADO PARA ASSINATURA | |
 | Enviar Nota Fiscal | CONTRATO ATIVO | |
-| Finalizado | AGUARDANDO PAGAMENTO | só se estiver em LIBERADO PARA PAGAMENTO; posta lembrete (ver Fluxo 1c) |
+| ~~Finalizado~~ | ~~AGUARDANDO PAGAMENTO~~ | desligado em 2026-08-20 junto com o Fluxo 1c (linha comentada em `statusMappingV2.ts`) |
 
 ---
 
 ### Fluxo 1c — Pagamento v2 (semiautomático)
+
+> ⏸️ **DESLIGADO POR COMPLETO (2026-08-20, a pedido do Vasco).** Três travas: a flag `FLUXO1C_ATIVO = false` em `src/handlers/linteV2StatusUpdate.ts` (Parte A, lembretes) e em `src/handlers/clickupPaymentDate.ts` (Parte B, leitura da data), mais o mapeamento `"Finalizado"` comentado em `src/config/statusMappingV2.ts` (o card não vai mais para AGUARDANDO PAGAMENTO; o webhook "Finalizado" é logado como "sem mapeamento"). **Para religar:** mudar a flag para `true` nos dois handlers e descomentar a linha do mapeamento.
 
 Substitui a extração automática de data da v1 (que dependia de ler mensagens da Linte, API ainda indisponível na v2). Tudo acontece no lado ClickUp:
 
@@ -127,7 +129,9 @@ Substitui a extração automática de data da v1 (que dependia de ler mensagens 
 
 ### Fluxo 3 — Cron: relatório diário
 
-**Trigger:** `0 11 * * *` UTC (08h BRT) · `api/cron/daily-report.ts`
+> ⏸️ **DESLIGADO (2026-08-20, a pedido do Vasco).** O cron foi removido do `vercel.json` e a flag `FLUXO3_ATIVO = false` em `api/cron/daily-report.ts` faz a rota responder `skipped` se chamada. Os logs continuam sendo gravados no Postgres normalmente. **Para religar:** mudar a flag para `true` e recolocar `{ "path": "/api/cron/daily-report", "schedule": "0 11 * * *" }` em `crons` no `vercel.json`.
+
+**Trigger (quando ligado):** `0 11 * * *` UTC (08h BRT) · `api/cron/daily-report.ts`
 
 Busca logs do dia anterior no Postgres e envia Adaptive Card para `TEAMS_WEBHOOK_URL`.
 

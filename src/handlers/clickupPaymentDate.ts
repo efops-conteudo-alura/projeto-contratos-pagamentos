@@ -15,7 +15,13 @@ interface ClickUpCommentPayload {
 // (ex.: "Pagamento programado para 25/Junho"), lê a data e preenche "Previsão de pagamento".
 // Só age se o comentário tiver palavra-chave de pagamento E uma data — qualquer outro comentário
 // (inclusive o próprio lembrete do bot, que não tem data) é ignorado silenciosamente.
+// ⚠️ FLUXO 1c DESLIGADO (2026-08-20, a pedido do Vasco):
+// Enquanto estiver false, comentários com data de pagamento NÃO preenchem "Previsão de pagamento".
+// Mesma flag em linteV2StatusUpdate.ts (Parte A). Para religar: mudar para true nos dois.
+const FLUXO1C_ATIVO = false;
+
 export async function handleClickUpPaymentDate(payload: ClickUpCommentPayload): Promise<void> {
+  if (!FLUXO1C_ATIVO) return;
   const commentText = payload.history_items?.[0]?.comment?.text_content ?? "";
   const parsed = extractPaymentDate(commentText);
   if (!parsed) return;
