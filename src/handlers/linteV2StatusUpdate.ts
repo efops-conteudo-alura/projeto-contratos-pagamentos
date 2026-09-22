@@ -41,6 +41,10 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
   const { linteCode, statusName, instanceId } = payload;
 
   const statusNameNorm = statusName.trim().normalize("NFC");
+  // DEBUG TEMPORÁRIO — remover após confirmar fix do encoding
+  console.log("[debug-encoding] statusName codes:", [...statusName].map(c => c.codePointAt(0)?.toString(16)).join(","));
+  console.log("[debug-encoding] statusNameNorm codes:", [...statusNameNorm].map(c => c.codePointAt(0)?.toString(16)).join(","));
+  console.log("[debug-encoding] Em análise key codes:", [...Object.keys(LINTE_V2_TO_CLICKUP)[0]].map(c => c.codePointAt(0)?.toString(16)).join(","));
   const mapping = LINTE_V2_TO_CLICKUP[statusNameNorm];
 
   const task = await findTaskByLinteCode(linteCode);
