@@ -40,7 +40,8 @@ const REMINDER_TEXT =
 export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): Promise<void> {
   const { linteCode, statusName, instanceId } = payload;
 
-  const mapping = LINTE_V2_TO_CLICKUP[statusName];
+  const statusNameNorm = statusName.trim().normalize("NFC");
+  const mapping = LINTE_V2_TO_CLICKUP[statusNameNorm];
 
   const task = await findTaskByLinteCode(linteCode);
   if (!task) {
@@ -72,7 +73,7 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
   }
 
   if (!mapping) {
-    await logInfo("linte-v2→clickup", `Status "${statusName}" sem mapeamento — ignorando atualização de status`, {
+    await logInfo("linte-v2→clickup", `Status "${statusNameNorm}" sem mapeamento — ignorando atualização de status`, {
       linteCode,
       taskId: task.id,
       taskName: task.name,

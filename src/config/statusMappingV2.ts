@@ -1,7 +1,7 @@
 import type { StatusMappingEntry } from "./statusMapping";
 
 export const LINTE_V2_TO_CLICKUP: Record<string, StatusMappingEntry> = {
-  "Em análise":                { targetStatus: "EM ANÁLISE" },
+  "Em análise":      { targetStatus: "EM ANÁLISE" },
   "Aprovado para Assinatura":  { targetStatus: "ENVIADO PARA ASSINATURA" },
   "Em Assinatura":             { targetStatus: "ENVIADO PARA ASSINATURA" },
   "Enviar Nota Fiscal":        { targetStatus: "CONTRATO ATIVO" },
