@@ -77,8 +77,11 @@ Editar apenas `src/config/statusMapping.ts` para adicionar mapeamentos.
 
 | Linte v2 | ClickUp | Observação |
 |---|---|---|
+| Em análise | EM ANÁLISE | |
+| Aprovado para Assinatura | ENVIADO PARA ASSINATURA | |
 | Em Assinatura | ENVIADO PARA ASSINATURA | |
 | Enviar Nota Fiscal | CONTRATO ATIVO | |
+| Pagamento Liberado | LIBERADO PARA PAGAMENTO | |
 | ~~Finalizado~~ | ~~AGUARDANDO PAGAMENTO~~ | desligado em 2026-08-20 junto com o Fluxo 1c (linha comentada em `statusMappingV2.ts`) |
 
 ---
