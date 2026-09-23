@@ -37,15 +37,27 @@ const REMINDER_TEXT =
   "Quando a Linte enviar a mensagem com a data prevista de pagamento, cole-a aqui como comentário " +
   "que eu preencho a \"Previsão de pagamento\" automaticamente.";
 
+// Linte envia acentos em Latin-1 (ex: á = 0xE1), que o parser JSON substitui por �.
+// A normalização decompõe o acento (NFD) e remove o par letra+diacrítico como unidade,
+// produzindo o mesmo resultado de remover o � — permitindo o match.
+function normalizeStatusKey(s: string): string {
+  return s
+    .trim()
+    .normalize("NFD")
+    .replace(/[a-zA-Z][̀-ͯ]+/g, "")
+    .replace(/[^\x20-\x7E]/g, "")
+    .toLowerCase();
+}
+
+function findMapping(statusName: string) {
+  const norm = normalizeStatusKey(statusName);
+  return Object.entries(LINTE_V2_TO_CLICKUP).find(([key]) => normalizeStatusKey(key) === norm)?.[1];
+}
+
 export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): Promise<void> {
   const { linteCode, statusName, instanceId } = payload;
 
-  const statusNameNorm = statusName.trim().normalize("NFC");
-  // DEBUG TEMPORÁRIO — remover após confirmar fix do encoding
-  console.log("[debug-encoding] statusName codes:", [...statusName].map(c => c.codePointAt(0)?.toString(16)).join(","));
-  console.log("[debug-encoding] statusNameNorm codes:", [...statusNameNorm].map(c => c.codePointAt(0)?.toString(16)).join(","));
-  console.log("[debug-encoding] Em análise key codes:", [...Object.keys(LINTE_V2_TO_CLICKUP)[0]].map(c => c.codePointAt(0)?.toString(16)).join(","));
-  const mapping = LINTE_V2_TO_CLICKUP[statusNameNorm];
+  const mapping = findMapping(statusName);
 
   const task = await findTaskByLinteCode(linteCode);
   if (!task) {
@@ -77,7 +89,7 @@ export async function handleLinteV2StatusUpdate(payload: LinteV2StatusPayload): 
   }
 
   if (!mapping) {
-    await logInfo("linte-v2→clickup", `Status "${statusNameNorm}" sem mapeamento — ignorando atualização de status`, {
+    await logInfo("linte-v2→clickup", `Status "${statusName}" sem mapeamento — ignorando atualização de status`, {
       linteCode,
       taskId: task.id,
       taskName: task.name,
