@@ -1,12 +1,14 @@
 import type { StatusMappingEntry } from "./statusMapping";
 
 export const LINTE_V2_TO_CLICKUP: Record<string, StatusMappingEntry> = {
-  "Em análise":           { targetStatus: "em análise" },
-  "Aprovado para Assinatura":  { targetStatus: "enviado para assinatura" },
-  "Em Assinatura":             { targetStatus: "enviado para assinatura" },
-  "Enviar Nota Fiscal":        { targetStatus: "contrato ativo" },
-  "Pagamento Liberado":        { targetStatus: "liberado para pagamento" },
-  // ⚠️ FLUXO 1c DESLIGADO (2026-08-20, a pedido do Vasco): "Finalizado" não move mais o card.
-  // Para religar, descomentar a linha abaixo (e FLUXO1C_ATIVO = true nos handlers).
-  // "Finalizado":              { targetStatus: "aguardando pagamento", requiredCurrentStatus: "liberado para pagamento", postReminder: true },
+  // Mapeamentos ativos
+  "Aprovação padrão DP":  { targetStatus: "em análise" },
+  "Em Assinatura":        { targetStatus: "enviado para assinatura" },
+  "Enviar Nota Fiscal":   { targetStatus: "contrato ativo" },
+
+  // Statuses recebidos mas sem ação no ClickUp por enquanto:
+  // "Aprovado para Assinatura" — sem ação
+  // "Documento assinado"       — sem ação (em breve vai para contrato ativo diretamente)
+  // "Pagamento Liberado"       — sem ação (tratamento diferente a definir)
+  // "Finalizado"               — sem ação (tratamento diferente a definir, Fluxo 1c desligado 2026-08-20)
 };
